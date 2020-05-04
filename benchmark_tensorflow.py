@@ -2,9 +2,9 @@
 
 """
   [tensorflow]
-    python tensorflow.py --help
+    python benchmark_tensorflow.py --help
     
-    python tensorflow.py --param_csv benchmark.csv
+    python benchmark_tensorflow.py --param_csv benchmark.csv
 """
 
 #---------------------------------
