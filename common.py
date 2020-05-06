@@ -29,7 +29,7 @@ FILE_LIST_NAME = 'file_list.csv'
 # --- コンストラクタ ---
 def GetParams(param_csv):
 	params = pd.read_csv(param_csv, header=None).values
-	return params[:, 0], params[:, 1], params[:, 2]
+	return params[:, 0], params[:, 1], params[:, 2], params[:, 3]
 
 #---------------------------------
 # クラス
