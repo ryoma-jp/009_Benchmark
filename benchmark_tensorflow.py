@@ -76,7 +76,7 @@ if __name__ == '__main__':
 		
 		# --- 推論 ---
 		img = None
-		x = None
+		prediction_header = ['prediction', 'label_id', 'filename']
 		start_time = time.time()
 		for cnt, (label_id, filename) in enumerate(zip(data['label_id'], data['filename'])):
 			if (img is None):
@@ -90,30 +90,34 @@ if __name__ == '__main__':
 					print(filename)
 					quit()
 			
-			if ((cnt+1) % 100 == 0):
+			if ((cnt+1) % 10 == 0):
 				print(str(time.time()-start_time) + ' : ' + str(cnt+1) + ' of ' + str(len(data)))
-				pre_inference = time.time()
 				with tf.compat.v1.Session(graph=inp.graph):
+					pre_inference = time.time()
 					prediction_val = predictions.eval(feed_dict={inp: img})
-					if (x is None):
-						x = prediction_val
+					after_inference = time.time()
+					if ((cnt+1) == 10):
+						pd.DataFrame(np.vstack((prediction_val.argmax(axis=1), data['label_id'].values[cnt+1-10:cnt+1], data['filename'].values[cnt+1-10:cnt+1])).T).to_csv('predictions.csv', \
+						header=prediction_header, index=False)
 					else:
-						x = np.vstack((x, prediction_val))
+						pd.DataFrame(np.vstack((prediction_val.argmax(axis=1), data['label_id'].values[cnt+1-10:cnt+1], data['filename'].values[cnt+1-10:cnt+1])).T).to_csv('predictions.csv', \
+						mode='a', \
+						header=False, index=False)
 				img = None
-				f_log.write(str(cnt+1)+','+str(time.time()-start_time)+','+str(time.time()-pre_inference)+'\n')
+				f_log.write(str(cnt+1)+','+str(time.time()-start_time)+','+str(after_inference-pre_inference)+'\n')
 				
-		if ((cnt+1) % 100 > 0):
-			pre_inference = time.time()
+		if ((cnt+1) % 10 > 0):
 			with tf.compat.v1.Session(graph=inp.graph):
+				pre_inference = time.time()
 				prediction_val = predictions.eval(feed_dict={inp: img})
-				if (x is None):
-					x = prediction_val
-				else:
-					x = np.vstack((x, prediction_val))
+				after_inference = time.time()
+
+				pd.DataFrame(np.vstack((prediction_val.argmax(axis=1), data['label_id'].values[cnt+1-((cnt+1)%10):], data['filename'].values[cnt+1-((cnt+1)%10):])).T).to_csv('predictions.csv', \
+				mode='a', \
+				header=False, index=False)
 			img = None
-			f_log.write(str(cnt+1)+','+str(time.time()-start_time)+','+str(time.time()-pre_inference)+'\n')
+			f_log.write(str(cnt+1)+','+str(time.time()-start_time)+','+str(after_inference-pre_inference)+'\n')
 		f_log.close()
 
-		pd.DataFrame(np.vstack((x.argmax(axis=1), data['label_id'].values, data['filename'].values)).T).to_csv('predictions.csv', header=False, index=False)
 		
 
