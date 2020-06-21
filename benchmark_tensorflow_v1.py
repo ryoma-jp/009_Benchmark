@@ -8,6 +8,7 @@ import sys
 import tqdm
 import argparse
 import pathlib
+import random
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -112,7 +113,8 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 	
 	return x, y, y_
 	
-def train(mnist_data, x, y, y_, n_epoch=32, n_minibatch=32, model_dir='model'):
+def train(dataset, x, y, y_, n_epoch=32, n_minibatch=32, model_dir='model'):
+	
 	loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_, logits=y)
 	train_step = tf.train.GradientDescentOptimizer(0.001).minimize(loss)
 	correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
@@ -131,32 +133,25 @@ def train(mnist_data, x, y, y_, n_epoch=32, n_minibatch=32, model_dir='model'):
 	log_label = ['epoch', 'iter', 'loss', 'train_acc']
 	log = []
 	print(log_label)
-	iter_minibatch = len(mnist_data.train.images) // n_minibatch
+	iter_minibatch = len(dataset.train_data) // n_minibatch
 	log_interval = iter_minibatch // 5
 	for epoch in range(n_epoch):
-#	for epoch in range(1):
 		for _iter in range(iter_minibatch):
-			batch_x, batch_y = mnist_data.train.next_batch(n_minibatch)
-			batch_x_image = batch_x.reshape([-1, 28, 28, 1])
-#			sess.run(train_step, feed_dict={x: batch_x, y_: batch_y})
-			sess.run(train_step, feed_dict={x: batch_x_image, y_: batch_y})
+			batch_x, batch_y = dataset.next_batch(n_minibatch)
+			sess.run(train_step, feed_dict={x: batch_x, y_: batch_y})
 			
 			if ((_iter+1) % log_interval == 0):
-				sep_len = len(mnist_data.train.images) // 5
+				sep_len = len(dataset.train_data) // 5
 				tmp_loss, tmp_acc = [], []
 				for sep in range(5):
 					pos = sep * sep_len
-					x_image = np.reshape(mnist_data.train.images[pos:pos+sep_len], [-1, 28, 28, 1])
-					_loss, _acc = sess.run([loss, accuracy], feed_dict={x: x_image, y_: mnist_data.train.labels[pos:pos+sep_len]})
+					_loss, _acc = sess.run([loss, accuracy], feed_dict={x: dataset.train_data[pos:pos+sep_len], y_: dataset.train_label[pos:pos+sep_len]})
 					tmp_loss.append(np.mean(_loss))
 					tmp_acc.append(_acc)
 				log.append([epoch, _iter, np.mean(tmp_loss), np.mean(tmp_acc)])
 				print(log[-1])
 	
-	test_x = mnist_data.test.images
-	test_x_image = test_x.reshape([-1, 28, 28, 1])
-#	print(sess.run(accuracy, feed_dict={x: test_x, y_: mnist_data.test.labels}))
-	print(sess.run(accuracy, feed_dict={x: test_x_image, y_: mnist_data.test.labels}))
+	print(sess.run(accuracy, feed_dict={x: dataset.test_data, y_: dataset.test_label}))
 	
 	os.makedirs(model_dir, exist_ok=True)
 	saver.save(sess, os.path.join(model_dir, 'model.ckpt'))
@@ -251,22 +246,60 @@ def ArgParser():
 	return parser.parse_args()
 	
 #---------------------------------
+# クラス
+#---------------------------------
+class Dataset():
+	def __init__(self, train_data, train_label, test_data, test_label):
+		self.train_data = train_data
+		self.train_label = train_label
+		self.test_data = test_data
+		self.test_label = test_label
+		
+		self.n_train_data = len(self.train_data)
+		self.n_test_data = len(self.test_data)
+		
+		self.idx_train_data = list(range(self.n_train_data))
+		self.idx_test_data = list(range(self.n_test_data))
+		
+		return
+	
+	def next_batch(self, n_minibatch):
+		index = random.sample(self.idx_train_data, n_minibatch)
+		return self.train_data[index], self.train_label[index]
+
+#---------------------------------
 # メイン処理
 #---------------------------------
 def main():
 	args = ArgParser()
 	
 	if (args.flg_train):
-		print('load mnist data')
-		mnist = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
+		dataset_type = 'mnist'
+		if (dataset_type == 'mnist'):
+			print('load mnist data')
+			dataset = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
+			dataset = Dataset(
+						dataset.train.images,
+						dataset.train.labels,
+						dataset.test.images,
+						dataset.test.labels)
+			img_shape = [28, 28, 1]		# H, W, C
+		else:
+			prnit('[ERROR] unknown dataset_type ... {}'.format(dataset_type))
+			quit()
+		
+		is_conv_net = True
+		if (is_conv_net):
+			dataset.train_data = np.reshape(dataset.train_data, np.hstack(([-1], img_shape)))
+			dataset.test_data = np.reshape(dataset.test_data, np.hstack(([-1], img_shape)))
 		
 #		models = [fc_net, conv_net]
 		models = [conv_net]
 		for i, model in enumerate(models):
 			print('load model')
-			x, y, y_ = model()
+			x, y, y_ = model(input_dims = np.hstack(([None], img_shape)))
 			print('train')
-			train(mnist, x, y, y_, model_dir='model_{:03}'.format(i))
+			train(dataset, x, y, y_, model_dir='model_{:03}'.format(i))
 	else:
 		config = tf.ConfigProto(
 			gpu_options=tf.GPUOptions(
