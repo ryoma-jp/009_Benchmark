@@ -249,7 +249,7 @@ def ArgParser():
 # クラス
 #---------------------------------
 class Dataset():
-	def __init__(self, train_data, train_label, test_data, test_label):
+	def __init__(self, train_data=None, train_label=None, test_data=None, test_label=None):
 		self.train_data = train_data
 		self.train_label = train_label
 		self.test_data = test_data
@@ -274,7 +274,8 @@ def main():
 	args = ArgParser()
 	
 	if (args.flg_train):
-		dataset_type = 'mnist'
+#		dataset_type = 'mnist'
+		dataset_type = 'cifar10'
 		if (dataset_type == 'mnist'):
 			print('load mnist data')
 			dataset = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
@@ -284,12 +285,45 @@ def main():
 						dataset.test.images,
 						dataset.test.labels)
 			img_shape = [28, 28, 1]		# H, W, C
+		elif (dataset_type == 'cifar10'):
+			def unpickle(file):
+				import pickle
+				with open(file, 'rb') as fo:
+					dict = pickle.load(fo, encoding='bytes')
+				return dict
+			
+			identity = np.eye(10, dtype=np.int)
+			train_files = ['data_batch_1', 'data_batch_2', 'data_batch_3', 'data_batch_4', 'data_batch_5']
+			dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', train_files[0]))
+			train_images = dataset[b'data']
+			train_labels = [identity[i] for i in dataset[b'labels']]
+			for train_file in train_files[1:]:
+				dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', train_file))
+				train_images = np.vstack((train_images, dataset[b'data']))
+				train_labels = np.vstack((train_labels, [identity[i] for i in dataset[b'labels']]))
+			
+			dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', 'test_batch'))
+			test_images = dataset[b'data']
+			test_labels = np.array([identity[i] for i in dataset[b'labels']])
+			
+			train_images = train_images.reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1).reshape(-1, 32*32*3) / 255		# N, C, H, W → N, H, W, C
+			test_images = test_images.reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1).reshape(-1, 32*32*3) / 255		# N, C, H, W → N, H, W, C
+			
+			dataset = Dataset(
+						train_images,
+						train_labels,
+						test_images,
+						test_labels)
+			
+			img_shape = [32, 32, 3]
+			
 		else:
-			prnit('[ERROR] unknown dataset_type ... {}'.format(dataset_type))
+			print('[ERROR] unknown dataset_type ... {}'.format(dataset_type))
 			quit()
 		
 		is_conv_net = True
 		if (is_conv_net):
+			print(dataset.train_data.shape)
 			dataset.train_data = np.reshape(dataset.train_data, np.hstack(([-1], img_shape)))
 			dataset.test_data = np.reshape(dataset.test_data, np.hstack(([-1], img_shape)))
 		
