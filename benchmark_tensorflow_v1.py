@@ -110,6 +110,9 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		W_fc = weight_variable([prev_channel, output_dims[-1]])
 		b_fc = bias_variable([output_dims[-1]])
 		y = tf.matmul(h_out, W_fc) + b_fc
+		
+		tf.add_to_collection('input', x)
+		tf.add_to_collection('output', y)
 	
 	return x, y, y_
 	
@@ -273,60 +276,75 @@ class Dataset():
 def main():
 	args = ArgParser()
 	
+#	dataset_type = 'mnist'
+	dataset_type = 'cifar10'
+	if (dataset_type == 'mnist'):
+		print('load mnist data')
+		dataset = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
+		dataset = Dataset(
+					dataset.train.images,
+					dataset.train.labels,
+					dataset.test.images,
+					dataset.test.labels)
+		img_shape = [28, 28, 1]		# H, W, C
+	elif (dataset_type == 'cifar10'):
+		def unpickle(file):
+			import pickle
+			with open(file, 'rb') as fo:
+				dict = pickle.load(fo, encoding='bytes')
+			return dict
+		
+		identity = np.eye(10, dtype=np.int)
+		train_files = ['data_batch_1', 'data_batch_2', 'data_batch_3', 'data_batch_4', 'data_batch_5']
+		dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', train_files[0]))
+		train_images = dataset[b'data']
+		train_labels = [identity[i] for i in dataset[b'labels']]
+		for train_file in train_files[1:]:
+			dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', train_file))
+			train_images = np.vstack((train_images, dataset[b'data']))
+			train_labels = np.vstack((train_labels, [identity[i] for i in dataset[b'labels']]))
+		
+		dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', 'test_batch'))
+		test_images = dataset[b'data']
+		test_labels = np.array([identity[i] for i in dataset[b'labels']])
+		
+		train_images = train_images.reshape(-1, 3, 32, 32) / 255
+		test_images = test_images.reshape(-1, 3, 32, 32) / 255
+		train_mean = np.mean(train_images, axis=(0, 2, 3))
+		train_std = np.std(train_images, axis=(0, 2, 3))
+		
+		test_mean = np.mean(test_images, axis=(0, 2, 3))
+		test_std = np.std(test_images, axis=(0, 2, 3))
+		
+		for i in range(3):
+			test_images[:, i, :, :] = test_images[:, i, :, :] - test_mean[i]
+			test_images[:, i, :, :] = test_images[:, i, :, :] * (train_std / test_std)[i]
+			test_images[:, i, :, :] = test_images[:, i, :, :] + train_mean[i]
+		test_mean = np.mean(test_images, axis=(0, 2, 3))
+		test_std = np.std(test_images, axis=(0, 2, 3))
+		
+		train_images = train_images.transpose(0, 2, 3, 1).reshape(-1, 32*32*3)	# N, C, H, W → N, H, W, C
+		test_images = test_images.transpose(0, 2, 3, 1).reshape(-1, 32*32*3)	# N, C, H, W → N, H, W, C
+		
+		dataset = Dataset(
+					train_images,
+					train_labels,
+					test_images,
+					test_labels)
+		
+		img_shape = [32, 32, 3]
+		
+	else:
+		print('[ERROR] unknown dataset_type ... {}'.format(dataset_type))
+		quit()
+	
+	is_conv_net = True
+	if (is_conv_net):
+		print(dataset.train_data.shape)
+		dataset.train_data = np.reshape(dataset.train_data, np.hstack(([-1], img_shape)))
+		dataset.test_data = np.reshape(dataset.test_data, np.hstack(([-1], img_shape)))
+	
 	if (args.flg_train):
-#		dataset_type = 'mnist'
-		dataset_type = 'cifar10'
-		if (dataset_type == 'mnist'):
-			print('load mnist data')
-			dataset = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
-			dataset = Dataset(
-						dataset.train.images,
-						dataset.train.labels,
-						dataset.test.images,
-						dataset.test.labels)
-			img_shape = [28, 28, 1]		# H, W, C
-		elif (dataset_type == 'cifar10'):
-			def unpickle(file):
-				import pickle
-				with open(file, 'rb') as fo:
-					dict = pickle.load(fo, encoding='bytes')
-				return dict
-			
-			identity = np.eye(10, dtype=np.int)
-			train_files = ['data_batch_1', 'data_batch_2', 'data_batch_3', 'data_batch_4', 'data_batch_5']
-			dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', train_files[0]))
-			train_images = dataset[b'data']
-			train_labels = [identity[i] for i in dataset[b'labels']]
-			for train_file in train_files[1:]:
-				dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', train_file))
-				train_images = np.vstack((train_images, dataset[b'data']))
-				train_labels = np.vstack((train_labels, [identity[i] for i in dataset[b'labels']]))
-			
-			dataset = unpickle(os.path.join('.', 'CIFAR10', 'cifar-10-batches-py', 'test_batch'))
-			test_images = dataset[b'data']
-			test_labels = np.array([identity[i] for i in dataset[b'labels']])
-			
-			train_images = train_images.reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1).reshape(-1, 32*32*3) / 255		# N, C, H, W → N, H, W, C
-			test_images = test_images.reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1).reshape(-1, 32*32*3) / 255		# N, C, H, W → N, H, W, C
-			
-			dataset = Dataset(
-						train_images,
-						train_labels,
-						test_images,
-						test_labels)
-			
-			img_shape = [32, 32, 3]
-			
-		else:
-			print('[ERROR] unknown dataset_type ... {}'.format(dataset_type))
-			quit()
-		
-		is_conv_net = True
-		if (is_conv_net):
-			print(dataset.train_data.shape)
-			dataset.train_data = np.reshape(dataset.train_data, np.hstack(([-1], img_shape)))
-			dataset.test_data = np.reshape(dataset.test_data, np.hstack(([-1], img_shape)))
-		
 #		models = [fc_net, conv_net]
 		models = [conv_net]
 		for i, model in enumerate(models):
@@ -346,6 +364,15 @@ def main():
 		saver.restore(sess, args.model)
 		
 		model_dir = str(pathlib.Path(args.model).resolve().parent)
+		
+		x = tf.get_collection('input')[0]
+		y = tf.get_collection('output')[0]
+		prediction = sess.run(y, feed_dict={x: dataset.test_data})
+		compare = np.argmax(prediction, axis=1) == np.argmax(dataset.test_label, axis=1)
+		accuracy = len(compare[compare==True]) / len(compare)
+		result_csv = np.vstack((np.argmax(prediction, axis=1), np.argmax(dataset.test_label, axis=1))).T
+		pd.DataFrame(result_csv).to_csv(os.path.join(model_dir, 'result.csv'), header=['prediction', 'labels'])
+		print(accuracy)
 		
 		get_ops(os.path.join(model_dir, 'operations.txt'))
 		get_weights(sess, os.path.join(model_dir, 'weights.txt'))
