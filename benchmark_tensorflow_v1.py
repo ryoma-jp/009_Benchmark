@@ -48,16 +48,17 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		is_training: 学習時True, 推論時False
 	"""
 	
-	def weight_variable(shape):
-		# [T.B.D] tf.get_variableで再利用できるようにする予定
-		initial = tf.truncated_normal(shape, stddev=0.1)
-		print('[DEBUG] {}'.format(initial))
-		return tf.Variable(initial)
+	def weight_variable(shape, name):
+		init = tf.truncated_normal_initializer(mean=0.0, stddev=0.1)
+		with tf.variable_scope('ConvNet', reuse=tf.AUTO_REUSE):
+			var = tf.get_variable(name, shape=shape, initializer=init)
+		return var
 	
-	def bias_variable(shape):
-		# [T.B.D] tf.get_variableで再利用できるようにする予定
-		initial = tf.constant(0.1, shape=shape)
-		return tf.Variable(initial)
+	def bias_variable(shape, name):
+		init = tf.constant_initializer([0.1])
+		with tf.variable_scope('ConvNet', reuse=tf.AUTO_REUSE):
+			var = tf.get_variable(name, shape=shape, initializer=init)
+		return var
 	
 	def conv2d(x, W):
 		return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
@@ -78,11 +79,11 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		h_out = x
 		h_out_shape = input_dims[1:]
 		prev_channel = input_dims[-1]
-		for _conv_channel, _conv_kernel_size, _pool_size in zip(conv_channels, conv_kernel_size, pool_size):
+		for i, (_conv_channel, _conv_kernel_size, _pool_size) in enumerate(zip(conv_channels, conv_kernel_size, pool_size)):
 			print(_conv_channel, _conv_kernel_size, _pool_size, prev_channel)
-			W_conv = weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel])
+			W_conv = weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel], 'W_conv{}'.format(i))
 			prev_channel = _conv_channel
-			b_conv = bias_variable([_conv_channel])
+			b_conv = bias_variable([_conv_channel], 'b_conv{}'.format(i))
 			h_conv = tf.nn.relu(conv2d(h_out, W_conv) + b_conv)
 			h_out = max_pool(h_conv, _pool_size)
 			
@@ -91,11 +92,12 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		# fully connected layer
 		h_out = tf.reshape(h_out, [tf.shape(x)[0], -1])
 		prev_channel = np.prod(h_out_shape)
+		i = 0
 		if (fc_channels is not None):
-			for _fc_channel in fc_channels:
-				W_fc = weight_variable([prev_channel, _fc_channel])
+			for i, _fc_channel in enumerate(fc_channels):
+				W_fc = weight_variable([prev_channel, _fc_channel], 'W_fc{}'.format(i))
 				prev_channel = _fc_channel
-				b_fc = bias_variable([_fc_channel])
+				b_fc = bias_variable([_fc_channel], 'b_fc{}'.format(i))
 				h_out = tf.nn.relu(tf.matmul(h_out, W_fc) + b_fc)
 		
 		config = tf.ConfigProto(
@@ -107,8 +109,8 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		init = tf.initialize_all_variables()
 		sess.run(init)
 		
-		W_fc = weight_variable([prev_channel, output_dims[-1]])
-		b_fc = bias_variable([output_dims[-1]])
+		W_fc = weight_variable([prev_channel, output_dims[-1]], 'w_fc{}'.format(i))
+		b_fc = bias_variable([output_dims[-1]], 'b_fc{}'.format(i))
 		y = tf.matmul(h_out, W_fc) + b_fc
 		
 		tf.add_to_collection('input', x)
@@ -116,7 +118,8 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 	
 	return x, y, y_
 	
-def train(dataset, x, y, y_, n_epoch=32, n_minibatch=32, model_dir='model'):
+def train(dataset, x, y, y_, n_epoch=32, n_minibatch=32, model_dir='model',
+			weight_decay=0.001):
 	
 	loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_, logits=y)
 	train_step = tf.train.GradientDescentOptimizer(0.001).minimize(loss)
@@ -340,8 +343,8 @@ class Dataset():
 def main():
 	args = ArgParser()
 	
-	dataset = Dataset('mnist')
-#	dataset = Dataset('cifar10')
+#	dataset = Dataset('mnist')
+	dataset = Dataset('cifar10')
 	if (args.flg_train):
 #		models = [fc_net, conv_net]
 		models = [conv_net]
