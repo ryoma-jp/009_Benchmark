@@ -37,7 +37,7 @@ def fc_net(input_dims=784, hidden1_dims=300, hidden2_dims=100, output_dims=10):
 	return x, y, y_
 
 
-def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_size=[5, 3], pool_size=[2, 2], fc_channels=None, output_dims=[None, 10], is_training=True):
+def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_size=[5, 3], pool_size=[2, 2], fc_channels=None, output_dims=[None, 10]):
 	"""
 		input_dims: 入力次元 [N, H, W, C]
 		conv_channels: 畳み込み層のChannel数 [<layer1 channel>, <layer2 channel>, ...]
@@ -45,7 +45,6 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		pool_size: プーリングサイズ [<layer1 pool size>, <layer2 kernel size>, ...]
 		fc_channels: 全結合層のChannel数 [<layer1 channel>, <layer2 channel>, ...]
 		output_dims: 出力次元
-		is_training: 学習時True, 推論時False
 	"""
 	
 	def weight_variable(shape, name):
@@ -66,60 +65,57 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 	def max_pool(x, size):
 		return tf.nn.max_pool(x, ksize=[1, size, size, 1], strides=[1, size, size, 1], padding='SAME')
 	
-	if (is_training):
-		reuse = False
-	else:
-		reuse = True
+	x = tf.placeholder(tf.float32, input_dims)
+	y_ = tf.placeholder(tf.float32, output_dims)
 	
-	with tf.variable_scope('ConvNet', reuse=reuse):
-		x = tf.placeholder(tf.float32, input_dims)
-		y_ = tf.placeholder(tf.float32, output_dims)
+	# convolution layer
+	h_out = x
+	h_out_shape = input_dims[1:]
+	prev_channel = input_dims[-1]
+	for i, (_conv_channel, _conv_kernel_size, _pool_size) in enumerate(zip(conv_channels, conv_kernel_size, pool_size)):
+		print(_conv_channel, _conv_kernel_size, _pool_size, prev_channel)
+		W_conv = weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel], 'W_conv{}'.format(i))
+		prev_channel = _conv_channel
+		b_conv = bias_variable([_conv_channel], 'b_conv{}'.format(i))
+		h_conv = tf.nn.relu(conv2d(h_out, W_conv) + b_conv)
+		h_out = max_pool(h_conv, _pool_size)
 		
-		# convolution layer
-		h_out = x
-		h_out_shape = input_dims[1:]
-		prev_channel = input_dims[-1]
-		for i, (_conv_channel, _conv_kernel_size, _pool_size) in enumerate(zip(conv_channels, conv_kernel_size, pool_size)):
-			print(_conv_channel, _conv_kernel_size, _pool_size, prev_channel)
-			W_conv = weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel], 'W_conv{}'.format(i))
-			prev_channel = _conv_channel
-			b_conv = bias_variable([_conv_channel], 'b_conv{}'.format(i))
-			h_conv = tf.nn.relu(conv2d(h_out, W_conv) + b_conv)
-			h_out = max_pool(h_conv, _pool_size)
-			
-			h_out_shape = np.array([h_out_shape[0] / _pool_size, h_out_shape[1] / _pool_size, _conv_channel], dtype=np.int)
-		
-		# fully connected layer
-		h_out = tf.reshape(h_out, [tf.shape(x)[0], -1])
-		prev_channel = np.prod(h_out_shape)
-		i = 0
-		if (fc_channels is not None):
-			for i, _fc_channel in enumerate(fc_channels):
-				W_fc = weight_variable([prev_channel, _fc_channel], 'W_fc{}'.format(i))
-				prev_channel = _fc_channel
-				b_fc = bias_variable([_fc_channel], 'b_fc{}'.format(i))
-				h_out = tf.nn.relu(tf.matmul(h_out, W_fc) + b_fc)
-		
-		config = tf.ConfigProto(
-			gpu_options=tf.GPUOptions(
-				allow_growth = True
-			)
+		h_out_shape = np.array([h_out_shape[0] / _pool_size, h_out_shape[1] / _pool_size, _conv_channel], dtype=np.int)
+	
+	# fully connected layer
+	h_out = tf.reshape(h_out, [tf.shape(x)[0], -1])
+	prev_channel = np.prod(h_out_shape)
+	i = 0
+	if (fc_channels is not None):
+		for i, _fc_channel in enumerate(fc_channels):
+			W_fc = weight_variable([prev_channel, _fc_channel], 'W_fc{}'.format(i))
+			prev_channel = _fc_channel
+			b_fc = bias_variable([_fc_channel], 'b_fc{}'.format(i))
+			h_out = tf.nn.relu(tf.matmul(h_out, W_fc) + b_fc)
+	
+	config = tf.ConfigProto(
+		gpu_options=tf.GPUOptions(
+			allow_growth = True
 		)
-		sess = tf.Session(config=config)
-		init = tf.initialize_all_variables()
-		sess.run(init)
-		
-		W_fc = weight_variable([prev_channel, output_dims[-1]], 'w_fc{}'.format(i))
-		b_fc = bias_variable([output_dims[-1]], 'b_fc{}'.format(i))
-		y = tf.matmul(h_out, W_fc) + b_fc
-		
-		tf.add_to_collection('input', x)
-		tf.add_to_collection('output', y)
+	)
+	sess = tf.Session(config=config)
+	init = tf.initialize_all_variables()
+	sess.run(init)
+	
+	W_fc = weight_variable([prev_channel, output_dims[-1]], 'W_fc{}'.format(i))
+	b_fc = bias_variable([output_dims[-1]], 'b_fc{}'.format(i))
+	y = tf.matmul(h_out, W_fc) + b_fc
+	
+	tf.add_to_collection('input', x)
+	tf.add_to_collection('output', y)
 	
 	return x, y, y_
 	
 def train(dataset, x, y, y_, n_epoch=32, n_minibatch=32, model_dir='model',
 			weight_decay=0.001):
+	
+	weight_name = get_weight_name()
+	print(weight_name)
 	
 	loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_, logits=y)
 	train_step = tf.train.GradientDescentOptimizer(0.001).minimize(loss)
@@ -183,6 +179,15 @@ def get_ops(outfile):
 	
 	return
 
+def get_weight_name():
+	weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+	weight_name = []
+	for weight in weights:
+		print(weight.name)
+		weight_name.append(weight.name)
+	
+	return weight_name
+	
 def get_weights(sess, outfile):
 	weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 	
@@ -374,6 +379,9 @@ def main():
 		result_csv = np.vstack((np.argmax(prediction, axis=1), np.argmax(dataset.test_label, axis=1))).T
 		pd.DataFrame(result_csv).to_csv(os.path.join(model_dir, 'result.csv'), header=['prediction', 'labels'])
 		print(accuracy)
+		
+		get_weight_name()
+		quit()
 		
 		get_ops(os.path.join(model_dir, 'operations.txt'))
 		get_weights(sess, os.path.join(model_dir, 'weights.txt'))
