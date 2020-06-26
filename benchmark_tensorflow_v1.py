@@ -360,7 +360,7 @@ def main():
 		quit()
 	
 	for idx_param in range(params['n_conditions']):
-		print('--- params: {} -------------------'.format(idx_param))
+		print('--- param #{} -------------------'.format(idx_param))
 		for key in params.keys():
 			if (key != 'n_conditions'):
 				print(' * {}: {}'.format(key, params[key][idx_param]))
@@ -369,16 +369,15 @@ def main():
 		dataset = Dataset(params['dataset'][idx_param])
 		
 		if (args.flg_train):
-#			models = [fc_net, conv_net]
-			models = [conv_net]
-			for i, model in enumerate(models):
-				print('load model')
-				x, y, y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
-				print('train')
-				train(dataset, x, y, y_, 
-					n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
-					optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
-					model_dir='model_{:03}'.format(i))
+			model = conv_net
+			
+			print('load model')
+			x, y, y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
+			print('train')
+			train(dataset, x, y, y_, 
+				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
+				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
+				model_dir='model_{:03}'.format(idx_param))
 		else:
 			config = tf.ConfigProto(
 				gpu_options=tf.GPUOptions(
