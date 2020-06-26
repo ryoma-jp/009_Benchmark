@@ -9,6 +9,7 @@ import tqdm
 import argparse
 import pathlib
 import random
+import yaml
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -111,14 +112,17 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 	
 	return x, y, y_
 	
-def train(dataset, x, y, y_, n_epoch=32, n_minibatch=32, model_dir='model',
-			weight_decay=0.001):
+def train(dataset, x, y, y_, 
+			n_epoch=32, n_minibatch=32,
+			optimizer='SGD', learning_rate=0.001,
+			weight_decay=0.001,
+			model_dir='model'):
 	
 	weight_name = get_weight_name()
 	print(weight_name)
 	
 	loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_, logits=y)
-	train_step = tf.train.GradientDescentOptimizer(0.001).minimize(loss)
+	train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
 	correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
 	accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 	
@@ -348,44 +352,58 @@ class Dataset():
 def main():
 	args = ArgParser()
 	
-#	dataset = Dataset('mnist')
-	dataset = Dataset('cifar10')
-	if (args.flg_train):
-#		models = [fc_net, conv_net]
-		models = [conv_net]
-		for i, model in enumerate(models):
-			print('load model')
-			x, y, y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
-			print('train')
-			train(dataset, x, y, y_, model_dir='model_{:03}'.format(i))
-	else:
-		config = tf.ConfigProto(
-			gpu_options=tf.GPUOptions(
-				allow_growth = True
-			)
-		)
-		sess = tf.Session(config=config)
-		
-		saver = tf.train.import_meta_graph(args.model + '.meta', clear_devices=True)
-		saver.restore(sess, args.model)
-		
-		model_dir = str(pathlib.Path(args.model).resolve().parent)
-		
-		x = tf.get_collection('input')[0]
-		y = tf.get_collection('output')[0]
-		prediction = sess.run(y, feed_dict={x: dataset.test_data})
-		compare = np.argmax(prediction, axis=1) == np.argmax(dataset.test_label, axis=1)
-		accuracy = len(compare[compare==True]) / len(compare)
-		result_csv = np.vstack((np.argmax(prediction, axis=1), np.argmax(dataset.test_label, axis=1))).T
-		pd.DataFrame(result_csv).to_csv(os.path.join(model_dir, 'result.csv'), header=['prediction', 'labels'])
-		print(accuracy)
-		
-		get_weight_name()
+	try:
+		with open('benchmark_tensorflow_v1.yaml') as file:
+			params = yaml.safe_load(file)
+	except Exception as e:
+		print('[ERROR] Exception occurred: benchmark_tensorflow_v1.yaml')
 		quit()
+	
+	for idx_param in range(params['n_conditions']):
+		print('--- params: {} -------------------'.format(idx_param))
+		for key in params.keys():
+			if (key != 'n_conditions'):
+				print(' * {}: {}'.format(key, params[key][idx_param]))
+		print('-----------------------------------')
+	
+		dataset = Dataset(params['dataset'][idx_param])
 		
-		get_ops(os.path.join(model_dir, 'operations.txt'))
-		get_weights(sess, os.path.join(model_dir, 'weights.txt'))
-		
+		if (args.flg_train):
+#			models = [fc_net, conv_net]
+			models = [conv_net]
+			for i, model in enumerate(models):
+				print('load model')
+				x, y, y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
+				print('train')
+				train(dataset, x, y, y_, 
+					n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
+					optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
+					model_dir='model_{:03}'.format(i))
+		else:
+			config = tf.ConfigProto(
+				gpu_options=tf.GPUOptions(
+					allow_growth = True
+				)
+			)
+			sess = tf.Session(config=config)
+			
+			saver = tf.train.import_meta_graph(args.model + '.meta', clear_devices=True)
+			saver.restore(sess, args.model)
+			
+			model_dir = str(pathlib.Path(args.model).resolve().parent)
+			
+			x = tf.get_collection('input')[0]
+			y = tf.get_collection('output')[0]
+			prediction = sess.run(y, feed_dict={x: dataset.test_data})
+			compare = np.argmax(prediction, axis=1) == np.argmax(dataset.test_label, axis=1)
+			accuracy = len(compare[compare==True]) / len(compare)
+			result_csv = np.vstack((np.argmax(prediction, axis=1), np.argmax(dataset.test_label, axis=1))).T
+			pd.DataFrame(result_csv).to_csv(os.path.join(model_dir, 'result.csv'), header=['prediction', 'labels'])
+			print(accuracy)
+			
+			get_ops(os.path.join(model_dir, 'operations.txt'))
+			get_weights(sess, os.path.join(model_dir, 'weights.txt'))
+			
 	return
 
 if __name__ == '__main__':

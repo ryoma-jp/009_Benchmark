@@ -1,0 +1,6 @@
+n_conditions: 1
+dataset: ['cifar10']
+n_epoch: [32]
+n_minibatch: [32]
+optimizer: ['SGD']
+learning_rate: [0.001]
