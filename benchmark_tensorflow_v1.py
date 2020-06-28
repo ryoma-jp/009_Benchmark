@@ -118,11 +118,24 @@ def train(dataset, x, y, y_,
 			weight_decay=0.001,
 			model_dir='model'):
 	
-	weight_name = get_weight_name()
-	print(weight_name)
+#	weight_name = get_weight_name()
+#	print(weight_name)
 	
+	weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 	loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_, logits=y)
-	train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
+	for weight in weights:
+		if ('W_' in weight.name):
+			print(weight.name)
+			loss = loss + weight_decay * tf.nn.l2_loss(weight)
+	
+	if (optimizer == 'SGD'):
+		train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
+	elif (optimizer == 'Adam'):
+		train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+	else:
+		print('[ERROR] unknown optimizer: {}'.format(optimizer))
+		quit()
+	
 	correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
 	accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 	
@@ -377,6 +390,7 @@ def main():
 			train(dataset, x, y, y_, 
 				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
 				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
+				weight_decay=params['weight_decay'][idx_param],
 				model_dir='model_{:03}'.format(idx_param))
 		else:
 			config = tf.ConfigProto(
