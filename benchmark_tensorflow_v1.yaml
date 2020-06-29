@@ -1,7 +1,7 @@
-n_conditions: 4
-dataset: ['cifar10', 'cifar10', 'cifar10', 'cifar10']
-n_epoch: [32, 32, 32, 32]
-n_minibatch: [32, 32, 32, 32]
-optimizer: ['Adam', 'Adam', 'Adam', 'Adam']
-learning_rate: [0.001, 0.001, 0.001, 0.001]
-weight_decay: [0.001, 0.01, 0.1, 0.0]
+n_conditions: 8
+dataset: ['cifar10', 'cifar10', 'cifar10', 'cifar10', 'cifar10', 'cifar10', 'cifar10', 'cifar10']
+n_epoch: [32, 32, 32, 32, 32, 32, 32, 32]
+n_minibatch: [32, 32, 32, 32, 32, 32, 32, 32]
+optimizer: ['SGD', 'SGD', 'SGD', 'SGD', 'Adam', 'Adam', 'Adam', 'Adam']
+learning_rate: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001]
+weight_decay: [0.001, 0.01, 0.1, 0.0, 0.001, 0.01, 0.1, 0.0]

@@ -149,7 +149,7 @@ def train(dataset, x, y, y_,
 	sess.run(init)
 	saver = tf.train.Saver()
 	
-	log_label = ['epoch', 'iter', 'loss', 'train_acc']
+	log_label = ['epoch', 'iter', 'train_loss', 'test_loss', 'train_acc', 'test_acc']
 	log = []
 	print(log_label)
 	iter_minibatch = len(dataset.train_data) // n_minibatch
@@ -161,18 +161,18 @@ def train(dataset, x, y, y_,
 			
 			if ((_iter+1) % log_interval == 0):
 				sep_len = len(dataset.train_data) // 5
-				tmp_loss, tmp_acc = [], []
+				tmp_train_loss, tmp_train_acc = [], []
 				for sep in range(5):
 					pos = sep * sep_len
 					_loss, _acc = sess.run([loss, accuracy], feed_dict={x: dataset.train_data[pos:pos+sep_len], y_: dataset.train_label[pos:pos+sep_len]})
-					tmp_loss.append(np.mean(_loss))
-					tmp_acc.append(_acc)
-				log.append([epoch, _iter, np.mean(tmp_loss), np.mean(tmp_acc)])
+					tmp_train_loss.append(np.mean(_loss))
+					tmp_train_acc.append(_acc)
+				tmp_test_loss, tmp_test_acc = sess.run([loss, accuracy], feed_dict={x: dataset.test_data, y_: dataset.test_label})
+				log.append([epoch, _iter, np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), tmp_test_acc])
 				print(log[-1])
 	
 	print(sess.run(accuracy, feed_dict={x: dataset.test_data, y_: dataset.test_label}))
 	
-	os.makedirs(model_dir, exist_ok=True)
 	saver.save(sess, os.path.join(model_dir, 'model.ckpt'))
 	pd.DataFrame(log).to_csv(os.path.join(model_dir, 'log.csv'), header=log_label)
 	
@@ -373,10 +373,15 @@ def main():
 		quit()
 	
 	for idx_param in range(params['n_conditions']):
+		model_dir = 'model_{:03}'.format(idx_param)
+		os.makedirs(model_dir, exist_ok=True)
+		
 		print('--- param #{} -------------------'.format(idx_param))
-		for key in params.keys():
-			if (key != 'n_conditions'):
-				print(' * {}: {}'.format(key, params[key][idx_param]))
+		with open(os.path.join(model_dir, 'params.txt'), 'w') as f:
+			for key in params.keys():
+				if (key != 'n_conditions'):
+					print(' * {}: {}'.format(key, params[key][idx_param]))
+					f.write(' * {}: {}\n'.format(key, params[key][idx_param]))
 		print('-----------------------------------')
 	
 		dataset = Dataset(params['dataset'][idx_param])
@@ -391,7 +396,7 @@ def main():
 				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
 				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
 				weight_decay=params['weight_decay'][idx_param],
-				model_dir='model_{:03}'.format(idx_param))
+				model_dir=model_dir)
 		else:
 			config = tf.ConfigProto(
 				gpu_options=tf.GPUOptions(
@@ -403,6 +408,7 @@ def main():
 			saver = tf.train.import_meta_graph(args.model + '.meta', clear_devices=True)
 			saver.restore(sess, args.model)
 			
+			# --- 推論側は引数で指定されたディレクトリに置き換える ---
 			model_dir = str(pathlib.Path(args.model).resolve().parent)
 			
 			x = tf.get_collection('input')[0]
