@@ -181,6 +181,37 @@ def train(dataset, x, y, y_,
 	
 	return
 
+def predict(dataset, model):
+	config = tf.ConfigProto(
+		gpu_options=tf.GPUOptions(
+			allow_growth = True
+		)
+	)
+	sess = tf.Session(config=config)
+	
+	saver = tf.train.import_meta_graph(model + '.meta', clear_devices=True)
+	saver.restore(sess, model)
+	
+	x = tf.get_collection('input')[0]
+	y = tf.get_collection('output')[0]
+	prediction = sess.run(y, feed_dict={x: dataset.test_data})
+	
+	sess.close()
+	tf.reset_default_graph()
+	
+	return prediction
+	
+def test(dataset, model):
+	prediction = predict(dataset, model)
+	
+	model_dir = str(pathlib.Path(model).resolve().parent)
+	compare = np.argmax(prediction, axis=1) == np.argmax(dataset.test_label, axis=1)
+	accuracy = len(compare[compare==True]) / len(compare)
+	result_csv = np.vstack((np.argmax(prediction, axis=1), np.argmax(dataset.test_label, axis=1))).T
+	pd.DataFrame(result_csv).to_csv(os.path.join(model_dir, 'result.csv'), header=['prediction', 'labels'])
+	
+	return accuracy
+	
 def get_ops(outfile):
 	graph = tf.get_default_graph()
 	all_ops = graph.get_operations()
@@ -205,7 +236,17 @@ def get_weight_name():
 	
 	return weight_name
 	
-def get_weights(sess, outfile):
+def get_weights(model, outfile):
+	config = tf.ConfigProto(
+		gpu_options=tf.GPUOptions(
+			allow_growth = True
+		)
+	)
+	sess = tf.Session(config=config)
+	
+	saver = tf.train.import_meta_graph(model + '.meta', clear_devices=True)
+	saver.restore(sess, model)
+	
 	weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
 	
 	np_print_th = np.get_printoptions()['threshold']
@@ -223,6 +264,9 @@ def get_weights(sess, outfile):
 				weights_shape.append(weight_val.shape)
 	np.set_printoptions(threshold=np_print_th)
 	print(weights_shape)
+	
+	sess.close()
+	tf.reset_default_graph()
 	
 #	if (len(weights_shape[-1]) == 1):
 #		print('output nodes = {}'.format(weights_shape[-1]))
@@ -365,28 +409,32 @@ class Dataset():
 def main():
 	args = ArgParser()
 	
-	try:
-		with open('benchmark_tensorflow_v1.yaml') as file:
-			params = yaml.safe_load(file)
-	except Exception as e:
-		print('[ERROR] Exception occurred: benchmark_tensorflow_v1.yaml')
-		quit()
-	
-	for idx_param in range(params['n_conditions']):
-		model_dir = 'model_{:03}'.format(idx_param)
-		os.makedirs(model_dir, exist_ok=True)
+	if (args.flg_train):
+		try:
+			with open('benchmark_tensorflow_v1.yaml') as file:
+				params = yaml.safe_load(file)
+		except Exception as e:
+			print('[ERROR] Exception occurred: benchmark_tensorflow_v1.yaml')
+			quit()
 		
-		print('--- param #{} -------------------'.format(idx_param))
-		with open(os.path.join(model_dir, 'params.txt'), 'w') as f:
-			for key in params.keys():
-				if (key != 'n_conditions'):
-					print(' * {}: {}'.format(key, params[key][idx_param]))
-					f.write(' * {}: {}\n'.format(key, params[key][idx_param]))
-		print('-----------------------------------')
-	
-		dataset = Dataset(params['dataset'][idx_param])
-		
-		if (args.flg_train):
+		for idx_param in range(params['n_conditions']):
+			model_dir = 'model_{:03}'.format(idx_param)
+			os.makedirs(model_dir, exist_ok=True)
+			
+			print('--- param #{} -------------------'.format(idx_param))
+			with open(os.path.join(model_dir, 'params.yaml'), 'w') as f:
+				f.write('n_conditions: 1\n')
+				for key in params.keys():
+					if (key != 'n_conditions'):
+						if (isinstance(params[key][idx_param], str)):
+							print('{}: [\'{}\']'.format(key, params[key][idx_param]))
+							f.write('{}: [\'{}\']\n'.format(key, params[key][idx_param]))
+						else:
+							print('{}: [{}]'.format(key, params[key][idx_param]))
+							f.write('{}: [{}]\n'.format(key, params[key][idx_param]))
+			print('-----------------------------------')
+			dataset = Dataset(params['dataset'][idx_param])
+			
 			model = conv_net
 			
 			print('load model')
@@ -397,31 +445,23 @@ def main():
 				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
 				weight_decay=params['weight_decay'][idx_param],
 				model_dir=model_dir)
-		else:
-			config = tf.ConfigProto(
-				gpu_options=tf.GPUOptions(
-					allow_growth = True
-				)
-			)
-			sess = tf.Session(config=config)
 			
-			saver = tf.train.import_meta_graph(args.model + '.meta', clear_devices=True)
-			saver.restore(sess, args.model)
-			
-			# --- 推論側は引数で指定されたディレクトリに置き換える ---
-			model_dir = str(pathlib.Path(args.model).resolve().parent)
-			
-			x = tf.get_collection('input')[0]
-			y = tf.get_collection('output')[0]
-			prediction = sess.run(y, feed_dict={x: dataset.test_data})
-			compare = np.argmax(prediction, axis=1) == np.argmax(dataset.test_label, axis=1)
-			accuracy = len(compare[compare==True]) / len(compare)
-			result_csv = np.vstack((np.argmax(prediction, axis=1), np.argmax(dataset.test_label, axis=1))).T
-			pd.DataFrame(result_csv).to_csv(os.path.join(model_dir, 'result.csv'), header=['prediction', 'labels'])
-			print(accuracy)
-			
-			get_ops(os.path.join(model_dir, 'operations.txt'))
-			get_weights(sess, os.path.join(model_dir, 'weights.txt'))
+	else:
+		model_dir = str(pathlib.Path(args.model).resolve().parent)
+		try:
+			with open(os.path.join(model_dir, 'params.yaml')) as file:
+				params = yaml.safe_load(file)
+		except Exception as e:
+			print('[ERROR] Exception occurred: params.yaml')
+			quit()
+		
+		dataset = Dataset(params['dataset'][0])
+		
+		accuracy = test(dataset, args.model)
+		print(accuracy)
+		
+		get_ops(os.path.join(model_dir, 'operations.txt'))
+		get_weights(args.model, os.path.join(model_dir, 'weights.txt'))
 			
 	return
 
