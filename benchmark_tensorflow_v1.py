@@ -171,7 +171,8 @@ def train(dataset, x, y, y_,
 				log.append([epoch, _iter, np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), tmp_test_acc])
 				print(log[-1])
 	
-	print(sess.run(accuracy, feed_dict={x: dataset.test_data, y_: dataset.test_label}))
+	ret = sess.run(accuracy, feed_dict={x: dataset.test_data, y_: dataset.test_label})
+	print(ret)
 	
 	saver.save(sess, os.path.join(model_dir, 'model.ckpt'))
 	pd.DataFrame(log).to_csv(os.path.join(model_dir, 'log.csv'), header=log_label)
@@ -179,7 +180,7 @@ def train(dataset, x, y, y_,
 	sess.close()
 	tf.reset_default_graph()
 	
-	return
+	return ret
 
 def predict(dataset, model):
 	config = tf.ConfigProto(
@@ -417,6 +418,16 @@ def main():
 			print('[ERROR] Exception occurred: benchmark_tensorflow_v1.yaml')
 			quit()
 		
+		train_result_name = 'train_result.csv'
+		train_result_header = []
+		for key in sorted(params.keys()):
+			if (key != 'n_conditions'):
+				train_result_header.append(key)
+		train_result_header.append('test accuracy')
+		train_result_data = []
+		
+		print(train_result_header)
+		
 		for idx_param in range(params['n_conditions']):
 			model_dir = 'model_{:03}'.format(idx_param)
 			os.makedirs(model_dir, exist_ok=True)
@@ -440,11 +451,20 @@ def main():
 			print('load model')
 			x, y, y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
 			print('train')
-			train(dataset, x, y, y_, 
+			test_accuracy = train(dataset, x, y, y_, 
 				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
 				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
 				weight_decay=params['weight_decay'][idx_param],
 				model_dir=model_dir)
+			
+			train_result_data_tmp = []
+			for key in sorted(params.keys()):
+				if (key != 'n_conditions'):
+					train_result_data_tmp.append(params[key][idx_param])
+			train_result_data_tmp.append(test_accuracy)
+			train_result_data.append(train_result_data_tmp)
+			
+		pd.DataFrame(train_result_data).to_csv(train_result_name, header=train_result_header, index=None)
 			
 	else:
 		model_dir = str(pathlib.Path(args.model).resolve().parent)
