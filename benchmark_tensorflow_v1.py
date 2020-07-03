@@ -15,6 +15,8 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 
+import matplotlib.pyplot as plt
+
 #---------------------------------
 # 関数
 #---------------------------------
@@ -171,16 +173,36 @@ def train(dataset, x, y, y_,
 				log.append([epoch, _iter, np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), tmp_test_acc])
 				print(log[-1])
 	
-	ret = sess.run(accuracy, feed_dict={x: dataset.test_data, y_: dataset.test_label})
-	print(ret)
+	sep_len = len(dataset.train_data) // 5
+	tmp_train_acc = []
+	for sep in range(5):
+		pos = sep * sep_len
+		_acc = sess.run(accuracy, feed_dict={x: dataset.train_data[pos:pos+sep_len], y_: dataset.train_label[pos:pos+sep_len]})
+		tmp_train_acc.append(_acc)
+	train_acc = np.mean(tmp_train_acc)
+	test_acc = sess.run(accuracy, feed_dict={x: dataset.test_data, y_: dataset.test_label})
 	
 	saver.save(sess, os.path.join(model_dir, 'model.ckpt'))
 	pd.DataFrame(log).to_csv(os.path.join(model_dir, 'log.csv'), header=log_label)
 	
+	# --- 重みをcsvとpngで保存 ---
+	for weight in weights:
+		weight_dir = os.path.join(model_dir, 'weights')
+		os.makedirs(weight_dir, exist_ok=True)
+		
+		weight_val = sess.run(weight)
+		weight_name = weight.name.translate(str.maketrans({'/': '-', ':': '-'}))
+		pd.DataFrame(weight_val.reshape(len(weight_val), -1)).to_csv(os.path.join(weight_dir, '{}.csv'.format(weight_name)), header=None, index=None)
+		
+		plt.hist(weight_val.reshape(-1), bins=32)
+		plt.tight_layout()
+		plt.savefig(os.path.join(weight_dir, '{}.png'.format(weight_name)))
+		plt.close()
+	
 	sess.close()
 	tf.reset_default_graph()
 	
-	return ret
+	return train_acc, test_acc
 
 def predict(dataset, model):
 	config = tf.ConfigProto(
@@ -423,6 +445,7 @@ def main():
 		for key in sorted(params.keys()):
 			if (key != 'n_conditions'):
 				train_result_header.append(key)
+		train_result_header.append('train accuracy')
 		train_result_header.append('test accuracy')
 		train_result_data = []
 		
@@ -451,7 +474,7 @@ def main():
 			print('load model')
 			x, y, y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
 			print('train')
-			test_accuracy = train(dataset, x, y, y_, 
+			train_acc, test_acc = train(dataset, x, y, y_, 
 				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
 				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
 				weight_decay=params['weight_decay'][idx_param],
@@ -461,7 +484,8 @@ def main():
 			for key in sorted(params.keys()):
 				if (key != 'n_conditions'):
 					train_result_data_tmp.append(params[key][idx_param])
-			train_result_data_tmp.append(test_accuracy)
+			train_result_data_tmp.append(train_acc)
+			train_result_data_tmp.append(test_acc)
 			train_result_data.append(train_result_data_tmp)
 			
 		pd.DataFrame(train_result_data).to_csv(train_result_name, header=train_result_header, index=None)
