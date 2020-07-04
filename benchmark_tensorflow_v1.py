@@ -398,9 +398,8 @@ class Dataset():
 			test_std = np.std(test_images, axis=(0, 2, 3))
 			
 			for i in range(3):
-				test_images[:, i, :, :] = test_images[:, i, :, :] - test_mean[i]
-				test_images[:, i, :, :] = test_images[:, i, :, :] * (train_std / test_std)[i]
-				test_images[:, i, :, :] = test_images[:, i, :, :] + train_mean[i]
+				train_images[:, i, :, :] = (train_images[:, i, :, :] - train_mean[i]) / train_std[i]
+				test_images[:, i, :, :] = (test_images[:, i, :, :] - train_mean[i]) / train_std[i]
 			test_mean = np.mean(test_images, axis=(0, 2, 3))
 			test_std = np.std(test_images, axis=(0, 2, 3))
 			
