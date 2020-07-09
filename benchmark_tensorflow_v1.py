@@ -40,7 +40,8 @@ def fc_net(input_dims=784, hidden1_dims=300, hidden2_dims=100, output_dims=10):
 	return x, y, y_
 
 
-def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_size=[5, 3], pool_size=[2, 2], fc_channels=None, output_dims=[None, 10]):
+def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_size=[5, 3], pool_size=[2, 2], fc_channels=None, output_dims=[None, 10],
+		is_train=True):
 	"""
 		input_dims: 入力次元 [N, H, W, C]
 		conv_channels: 畳み込み層のChannel数 [<layer1 channel>, <layer2 channel>, ...]
@@ -50,20 +51,73 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		output_dims: 出力次元
 	"""
 	
-	def weight_variable(shape, name):
+	def weight_variable(shape, scope):
 		init = tf.truncated_normal_initializer(mean=0.0, stddev=0.1)
-		with tf.variable_scope('ConvNet', reuse=tf.AUTO_REUSE):
-			var = tf.get_variable(name, shape=shape, initializer=init)
-		return var
+		with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
+			var = tf.get_variable('Weight', shape=shape, initializer=init)
 	
-	def bias_variable(shape, name):
+	def bias_variable(shape, scope):
 		init = tf.constant_initializer([0.1])
-		with tf.variable_scope('ConvNet', reuse=tf.AUTO_REUSE):
-			var = tf.get_variable(name, shape=shape, initializer=init)
-		return var
+		with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
+			var = tf.get_variable('Bias', shape=shape, initializer=init)
 	
-	def conv2d(x, W):
-		return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+	def bn_variables(shape, scope):
+		with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
+			gamma = tf.get_variable('gamma', shape[-1], initializer=tf.constant_initializer(1.0))
+			beta = tf.get_variable('beta', shape[-1], initializer=tf.constant_initializer(0.0))
+			moving_avg = tf.get_variable('moving_avg', shape[-1], initializer=tf.constant_initializer(0.0), trainable=False)
+			moving_var = tf.get_variable('moving_var', shape[-1], initializer=tf.constant_initializer(1.0), trainable=False)
+	
+	def batch_norm(x, scope, train, epsilon=0.001, decay=.99):
+		# --- Activationの後にBatchNorm層を入れる ---
+		# Perform a batch normalization after a conv layer or a fc layer
+		# gamma: a scale factor
+		# beta: an offset
+		# epsilon: the variance epsilon - a small float number to avoid dividing by 0
+		
+		if train:
+			with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
+				shape = x.get_shape().as_list()
+				ema = tf.train.ExponentialMovingAverage(decay=decay)
+				batch_avg, batch_var = tf.nn.moments(x, list(range(len(shape)-1)))
+				
+				print(batch_avg.name)
+				print(batch_var.name)
+				print(ema.name)
+				print(x.name)
+				
+				ema_apply_op = ema.apply([batch_avg, batch_var])
+				
+		with tf.variable_scope(scope, reuse=True):
+			gamma, beta = tf.get_variable('gamma'), tf.get_variable('beta')
+			moving_avg, moving_var = tf.get_variable('moving_avg'), tf.get_variable('moving_var')
+			control_inputs = []
+			if train:
+				with tf.control_dependencies([ema_apply_op]):
+					avg = moving_avg.assign(ema.average(batch_avg))
+					var = moving_var.assign(ema.average(batch_var))
+					
+					with tf.control_dependencies([avg, var]):
+						control_inputs = [moving_avg, moving_var]
+			else:
+				avg = moving_avg
+				var = moving_var
+			with tf.control_dependencies(control_inputs):
+				output = tf.nn.batch_normalization(x, avg, var, offset=beta, scale=gamma, variance_epsilon=epsilon)
+		
+		return output
+	
+	def conv2d(x, scope):
+		with tf.variable_scope(scope, reuse=True):
+			W = tf.get_variable('Weight')
+			b = tf.get_variable('Bias')
+			return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME') + b
+	
+	def affine(x, scope):
+		with tf.variable_scope(scope, reuse=True):
+			W = tf.get_variable('Weight')
+			b = tf.get_variable('Bias')
+			return tf.matmul(x, W) + b
 	
 	def max_pool(x, size):
 		return tf.nn.max_pool(x, ksize=[1, size, size, 1], strides=[1, size, size, 1], padding='SAME')
@@ -77,13 +131,19 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 	prev_channel = input_dims[-1]
 	for i, (_conv_channel, _conv_kernel_size, _pool_size) in enumerate(zip(conv_channels, conv_kernel_size, pool_size)):
 		print(_conv_channel, _conv_kernel_size, _pool_size, prev_channel)
-		W_conv = weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel], 'W_conv{}'.format(i))
-		prev_channel = _conv_channel
-		b_conv = bias_variable([_conv_channel], 'b_conv{}'.format(i))
-		h_conv = tf.nn.relu(conv2d(h_out, W_conv) + b_conv)
-		h_out = max_pool(h_conv, _pool_size)
+		weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel], 'ConvLayer{}'.format(i))
+		bias_variable([_conv_channel], 'ConvLayer{}'.format(i))
+		h_conv = tf.nn.relu(conv2d(h_out, 'ConvLayer{}'.format(i)))
 		
-		h_out_shape = np.array([h_out_shape[0] / _pool_size, h_out_shape[1] / _pool_size, _conv_channel], dtype=np.int)
+		#h_out_shape = np.array([h_out_shape[0] / _pool_size, h_out_shape[1] / _pool_size, _conv_channel], dtype=np.int)
+		h_conv_shape = h_conv.get_shape().as_list()[1:]
+		bn_variables(h_conv_shape, 'ConvLayer{}'.format(i))
+		h_bn = batch_norm(h_conv, 'ConvLayer{}'.format(i), is_train)
+		
+		h_out = max_pool(h_bn, _pool_size)
+		h_out_shape = h_out.get_shape().as_list()[1:]
+		
+		prev_channel = _conv_channel
 	
 	# fully connected layer
 	h_out = tf.reshape(h_out, [tf.shape(x)[0], -1])
@@ -91,30 +151,28 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 	i = 0
 	if (fc_channels is not None):
 		for i, _fc_channel in enumerate(fc_channels):
-			W_fc = weight_variable([prev_channel, _fc_channel], 'W_fc{}'.format(i))
+			weight_variable([prev_channel, _fc_channel], 'FCLayer{}'.format(i))
+			bias_variable([_fc_channel], 'FCLayer{}'.format(i))
+			h_out = tf.nn.relu(affine(h_out, 'FCLayer{}'.format(i)))
 			prev_channel = _fc_channel
-			b_fc = bias_variable([_fc_channel], 'b_fc{}'.format(i))
-			h_out = tf.nn.relu(tf.matmul(h_out, W_fc) + b_fc)
 	
-	config = tf.ConfigProto(
-		gpu_options=tf.GPUOptions(
-			allow_growth = True
-		)
-	)
-	sess = tf.Session(config=config)
-	init = tf.initialize_all_variables()
-	sess.run(init)
+	weight_variable([prev_channel, output_dims[-1]], 'FCLayer{}'.format(i))
+	bias_variable([output_dims[-1]], 'FCLayer{}'.format(i))
+	y = affine(h_out, 'FCLayer{}'.format(i))
 	
-	W_fc = weight_variable([prev_channel, output_dims[-1]], 'W_fc{}'.format(i))
-	b_fc = bias_variable([output_dims[-1]], 'b_fc{}'.format(i))
-	y = tf.matmul(h_out, W_fc) + b_fc
-	
-	tf.add_to_collection('input', x)
-	tf.add_to_collection('output', y)
+	if (is_train):
+		tf.add_to_collection('train_input', x)
+		tf.add_to_collection('train_output', y)
+	else:
+		# --- 推論側を標準名にする ---
+		tf.add_to_collection('input', x)
+		tf.add_to_collection('output', y)
 	
 	return x, y, y_
 	
-def train(dataset, x, y, y_, 
+def train(dataset,
+			train_x, train_y, train_y_, 
+			test_x, test_y, test_y_, 
 			n_epoch=32, n_minibatch=32,
 			optimizer='SGD', learning_rate=0.001,
 			weight_decay=0.001,
@@ -124,7 +182,7 @@ def train(dataset, x, y, y_,
 #	print(weight_name)
 	
 	weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
-	loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_, logits=y)
+	loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=train_y_, logits=train_y)
 	for weight in weights:
 		if ('W_' in weight.name):
 			print(weight.name)
@@ -138,8 +196,11 @@ def train(dataset, x, y, y_,
 		print('[ERROR] unknown optimizer: {}'.format(optimizer))
 		quit()
 	
-	correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
-	accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+	correct_prediction = tf.equal(tf.argmax(train_y, 1), tf.argmax(train_y_, 1))
+	train_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+	
+	correct_prediction = tf.equal(tf.argmax(test_y, 1), tf.argmax(test_y_, 1))
+	test_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 	
 	init = tf.initialize_all_variables()
 	config = tf.ConfigProto(
@@ -159,17 +220,18 @@ def train(dataset, x, y, y_,
 	for epoch in range(n_epoch):
 		for _iter in range(iter_minibatch):
 			batch_x, batch_y = dataset.next_batch(n_minibatch)
-			sess.run(train_step, feed_dict={x: batch_x, y_: batch_y})
+			sess.run(train_step, feed_dict={train_x: batch_x, train_y_: batch_y})
 			
 			if ((_iter+1) % log_interval == 0):
 				sep_len = len(dataset.train_data) // 5
 				tmp_train_loss, tmp_train_acc = [], []
 				for sep in range(5):
 					pos = sep * sep_len
-					_loss, _acc = sess.run([loss, accuracy], feed_dict={x: dataset.train_data[pos:pos+sep_len], y_: dataset.train_label[pos:pos+sep_len]})
+					_loss, _acc = sess.run([loss, train_accuracy], feed_dict={train_x: dataset.train_data[pos:pos+sep_len], train_y_: dataset.train_label[pos:pos+sep_len]})
 					tmp_train_loss.append(np.mean(_loss))
 					tmp_train_acc.append(_acc)
-				tmp_test_loss, tmp_test_acc = sess.run([loss, accuracy], feed_dict={x: dataset.test_data, y_: dataset.test_label})
+				tmp_test_loss = sess.run(loss, feed_dict={train_x: dataset.test_data, train_y_: dataset.test_label})
+				tmp_test_acc = sess.run(test_accuracy, feed_dict={test_x: dataset.test_data, test_y_: dataset.test_label})
 				log.append([epoch, _iter, np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), tmp_test_acc])
 				print(log[-1])
 	
@@ -177,10 +239,10 @@ def train(dataset, x, y, y_,
 	tmp_train_acc = []
 	for sep in range(5):
 		pos = sep * sep_len
-		_acc = sess.run(accuracy, feed_dict={x: dataset.train_data[pos:pos+sep_len], y_: dataset.train_label[pos:pos+sep_len]})
+		_acc = sess.run(train_accuracy, feed_dict={train_x: dataset.train_data[pos:pos+sep_len], train_y_: dataset.train_label[pos:pos+sep_len]})
 		tmp_train_acc.append(_acc)
 	train_acc = np.mean(tmp_train_acc)
-	test_acc = sess.run(accuracy, feed_dict={x: dataset.test_data, y_: dataset.test_label})
+	test_acc = sess.run(test_accuracy, feed_dict={test_x: dataset.test_data, test_y_: dataset.test_label})
 	
 	saver.save(sess, os.path.join(model_dir, 'model.ckpt'))
 	pd.DataFrame(log).to_csv(os.path.join(model_dir, 'log.csv'), header=log_label)
@@ -471,9 +533,12 @@ def main():
 			model = conv_net
 			
 			print('load model')
-			x, y, y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
+			train_x, train_y, train_y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
+			test_x, test_y, test_y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])), is_train=False)
 			print('train')
-			train_acc, test_acc = train(dataset, x, y, y_, 
+			train_acc, test_acc = train(dataset,
+				train_x, train_y, train_y_, 
+				test_x, test_y, test_y_, 
 				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
 				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
 				weight_decay=params['weight_decay'][idx_param],
