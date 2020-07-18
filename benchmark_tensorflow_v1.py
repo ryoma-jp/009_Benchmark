@@ -51,15 +51,15 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		output_dims: 出力次元
 	"""
 	
-	def weight_variable(shape, scope):
+	def weight_variable(shape, scope, id=0):
 		init = tf.truncated_normal_initializer(mean=0.0, stddev=0.1)
 		with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-			var = tf.get_variable('Weight', shape=shape, initializer=init)
+			var = tf.get_variable('Weight{}'.format(id), shape=shape, initializer=init)
 	
-	def bias_variable(shape, scope):
+	def bias_variable(shape, scope, id=0):
 		init = tf.constant_initializer([0.1])
 		with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-			var = tf.get_variable('Bias', shape=shape, initializer=init)
+			var = tf.get_variable('Bias{}'.format(id), shape=shape, initializer=init)
 	
 	def bn_variables(shape, scope):
 		with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
@@ -107,16 +107,16 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 		
 		return output
 	
-	def conv2d(x, scope):
+	def conv2d(x, scope, id):
 		with tf.variable_scope(scope, reuse=True):
-			W = tf.get_variable('Weight')
-			b = tf.get_variable('Bias')
+			W = tf.get_variable('Weight{}'.format(id))
+			b = tf.get_variable('Bias{}'.format(id))
 			return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME') + b
 	
-	def affine(x, scope):
+	def affine(x, scope, id=0):
 		with tf.variable_scope(scope, reuse=True):
-			W = tf.get_variable('Weight')
-			b = tf.get_variable('Bias')
+			W = tf.get_variable('Weight{}'.format(id))
+			b = tf.get_variable('Bias{}'.format(id))
 			return tf.matmul(x, W) + b
 	
 	def max_pool(x, size):
@@ -131,9 +131,15 @@ def conv_net(input_dims=[None, 28, 28, 1], conv_channels=[32, 64], conv_kernel_s
 	prev_channel = input_dims[-1]
 	for i, (_conv_channel, _conv_kernel_size, _pool_size) in enumerate(zip(conv_channels, conv_kernel_size, pool_size)):
 		print(_conv_channel, _conv_kernel_size, _pool_size, prev_channel)
-		weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel], 'ConvLayer{}'.format(i))
-		bias_variable([_conv_channel], 'ConvLayer{}'.format(i))
-		h_conv = tf.nn.relu(conv2d(h_out, 'ConvLayer{}'.format(i)))
+		
+		for ii in range(2):
+			weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel], 'ConvLayer{}'.format(i), ii)
+			bias_variable([_conv_channel], 'ConvLayer{}'.format(i), ii)
+			h_out = conv2d(h_out, 'ConvLayer{}'.format(i), ii)
+			
+			prev_channel = _conv_channel
+		
+		h_conv = tf.nn.relu(h_out)
 		
 		#h_out_shape = np.array([h_out_shape[0] / _pool_size, h_out_shape[1] / _pool_size, _conv_channel], dtype=np.int)
 		h_conv_shape = h_conv.get_shape().as_list()[1:]
@@ -533,8 +539,13 @@ def main():
 			model = conv_net
 			
 			print('load model')
-			train_x, train_y, train_y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])))
-			test_x, test_y, test_y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])), is_train=False)
+			train_x, train_y, train_y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])),
+											conv_channels=params['conv_channels'][idx_param],
+											conv_kernel_size=params['conv_kernel_size'][idx_param])
+			test_x, test_y, test_y_ = model(input_dims = np.hstack(([None], dataset.train_data.shape[1:])),
+											conv_channels=params['conv_channels'][idx_param],
+											conv_kernel_size=params['conv_kernel_size'][idx_param],
+											is_train=False)
 			print('train')
 			train_acc, test_acc = train(dataset,
 				train_x, train_y, train_y_, 
