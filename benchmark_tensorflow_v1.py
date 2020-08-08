@@ -6,6 +6,7 @@
 import os
 import sys
 import tqdm
+import time
 import argparse
 import pathlib
 import random
@@ -38,7 +39,7 @@ class TF_Model():
 		return
 	
 	def fc_net(self, input_dims=784, hidden1_dims=300, hidden2_dims=100, output_dims=10):
-		x = tf.placeholder(tf.float32, [None, input_dims])
+		x = tf.compat.v1.placeholder(tf.float32, [None, input_dims])
 		
 		W1 = tf.Variable(tf.truncated_normal([input_dims, hidden1_dims]))
 		b1 = tf.Variable(tf.zeros([hidden1_dims]))
@@ -52,7 +53,7 @@ class TF_Model():
 		b3 = tf.Variable(tf.zeros([output_dims]))
 		y = tf.add(tf.matmul(h2, W3), b3, name='output')
 		
-		y_ = tf.placeholder(tf.float32, [None, output_dims])
+		y_ = tf.compat.v1.placeholder(tf.float32, [None, output_dims])
 		
 		return x, y, y_
 
@@ -70,20 +71,20 @@ class TF_Model():
 		
 		def weight_variable(shape, scope, id=0):
 			init = tf.truncated_normal_initializer(mean=0.0, stddev=0.01)
-			with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-				var = tf.get_variable('Weight{}'.format(id), shape=shape, initializer=init)
+			with tf.compat.v1.variable_scope(scope, reuse=tf.compat.v1.AUTO_REUSE):
+				var = tf.compat.v1.get_variable('Weight{}'.format(id), shape=shape, initializer=init)
 		
 		def bias_variable(shape, scope, id=0):
 			init = tf.constant_initializer([0.1])
-			with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-				var = tf.get_variable('Bias{}'.format(id), shape=shape, initializer=init)
+			with tf.compat.v1.variable_scope(scope, reuse=tf.compat.v1.AUTO_REUSE):
+				var = tf.compat.v1.get_variable('Bias{}'.format(id), shape=shape, initializer=init)
 		
 		def bn_variables(shape, scope):
-			with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-				gamma = tf.get_variable('gamma', shape[-1], initializer=tf.constant_initializer(1.0))
-				beta = tf.get_variable('beta', shape[-1], initializer=tf.constant_initializer(0.0))
-				moving_avg = tf.get_variable('moving_avg', shape[-1], initializer=tf.constant_initializer(0.0), trainable=False)
-				moving_var = tf.get_variable('moving_var', shape[-1], initializer=tf.constant_initializer(1.0), trainable=False)
+			with tf.compat.v1.variable_scope(scope, reuse=tf.compat.v1.AUTO_REUSE):
+				gamma = tf.compat.v1.get_variable('gamma', shape[-1], initializer=tf.constant_initializer(1.0))
+				beta = tf.compat.v1.get_variable('beta', shape[-1], initializer=tf.constant_initializer(0.0))
+				moving_avg = tf.compat.v1.get_variable('moving_avg', shape[-1], initializer=tf.constant_initializer(0.0), trainable=False)
+				moving_var = tf.compat.v1.get_variable('moving_var', shape[-1], initializer=tf.constant_initializer(1.0), trainable=False)
 		
 		def batch_norm(x, scope, train, epsilon=0.001, decay=0.99):
 			# --- Activationの後にBatchNorm層を入れる ---
@@ -93,7 +94,7 @@ class TF_Model():
 			# epsilon: the variance epsilon - a small float number to avoid dividing by 0
 			
 			if train:
-				with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
+				with tf.compat.v1.variable_scope(scope, reuse=tf.compat.v1.AUTO_REUSE):
 					shape = x.get_shape().as_list()
 					ema = tf.compat.v1.train.ExponentialMovingAverage(decay=decay)
 					batch_avg, batch_var = tf.nn.moments(x, list(range(len(shape)-1)))
@@ -105,9 +106,9 @@ class TF_Model():
 					
 					ema_apply_op = ema.apply([batch_avg, batch_var])
 					
-			with tf.variable_scope(scope, reuse=True):
-				gamma, beta = tf.get_variable('gamma'), tf.get_variable('beta')
-				moving_avg, moving_var = tf.get_variable('moving_avg'), tf.get_variable('moving_var')
+			with tf.compat.v1.variable_scope(scope, reuse=True):
+				gamma, beta = tf.compat.v1.get_variable('gamma'), tf.compat.v1.get_variable('beta')
+				moving_avg, moving_var = tf.compat.v1.get_variable('moving_avg'), tf.compat.v1.get_variable('moving_var')
 				control_inputs = []
 				if train:
 					with tf.control_dependencies([ema_apply_op]):
@@ -125,22 +126,22 @@ class TF_Model():
 			return output
 		
 		def conv2d(x, scope, id):
-			with tf.variable_scope(scope, reuse=True):
-				W = tf.get_variable('Weight{}'.format(id))
-				b = tf.get_variable('Bias{}'.format(id))
+			with tf.compat.v1.variable_scope(scope, reuse=True):
+				W = tf.compat.v1.get_variable('Weight{}'.format(id))
+				b = tf.compat.v1.get_variable('Bias{}'.format(id))
 				return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME') + b
 		
 		def affine(x, scope, id=0):
-			with tf.variable_scope(scope, reuse=True):
-				W = tf.get_variable('Weight{}'.format(id))
-				b = tf.get_variable('Bias{}'.format(id))
+			with tf.compat.v1.variable_scope(scope, reuse=True):
+				W = tf.compat.v1.get_variable('Weight{}'.format(id))
+				b = tf.compat.v1.get_variable('Bias{}'.format(id))
 				return tf.matmul(x, W) + b
 		
 		def max_pool(x, size):
-			return tf.nn.max_pool(x, ksize=[1, size, size, 1], strides=[1, size, size, 1], padding='SAME')
+			return tf.nn.max_pool2d(x, ksize=[1, size, size, 1], strides=[1, size, size, 1], padding='SAME')
 		
-		x = tf.placeholder(tf.float32, input_dims)
-		y_ = tf.placeholder(tf.float32, output_dims)
+		x = tf.compat.v1.placeholder(tf.float32, input_dims)
+		y_ = tf.compat.v1.placeholder(tf.float32, output_dims)
 		
 		# convolution layer
 		h_out = x
@@ -250,15 +251,23 @@ class TF_Model():
 		log = []
 		print(log_label)
 		train_data_norm = dataset.get_normalized_data('train')
+		print('train data loaded')
 		test_data_norm = dataset.get_normalized_data('test')
+		print('test data loaded')
 		iter_minibatch = len(train_data_norm) // n_minibatch
-		log_interval = iter_minibatch // 5
+#		log_interval = iter_minibatch // 5
+#		log_interval = iter_minibatch
+		log_interval = 5    # [epoch]
 		for epoch in range(n_epoch):
 			for _iter in range(iter_minibatch):
+				time_start = time.time()
 				batch_x, batch_y = dataset.next_batch(n_minibatch)
+				time_nextbatch = time.time()
 				sess.run(train_step, feed_dict={train_x: batch_x, train_y_: batch_y})
+				time_train_step = time.time()
 				
-				if ((_iter+1) % log_interval == 0):
+#				if ((_iter+1) % log_interval == 0):
+				if ((_iter == 0) and ((epoch+1) % log_interval == 0)):
 					# --- train loss/acc ---
 					sep_len = len(train_data_norm) // 100
 					tmp_train_loss, tmp_train_acc = [], []
@@ -267,6 +276,7 @@ class TF_Model():
 						_loss, _acc = sess.run([loss, train_accuracy], feed_dict={train_x: train_data_norm[pos:pos+sep_len], train_y_: dataset.train_label[pos:pos+sep_len]})
 						tmp_train_loss.append(np.mean(_loss))
 						tmp_train_acc.append(_acc)
+					time_train_loss_acc = time.time()
 
 					# --- test loss/acc ---
 					sep_len = len(test_data_norm) // 100
@@ -279,6 +289,9 @@ class TF_Model():
 
 						tmp_test_loss.append(np.mean(_loss))
 						tmp_test_acc.append(_acc)
+					time_test_loss_acc = time.time()
+#					print(time_start, time_nextbatch, time_train_step, time_train_loss_acc, time_test_loss_acc)
+#					quit()
 
 #					tmp_test_loss = sess.run(loss, feed_dict={train_x: test_data_norm, train_y_: dataset.test_label})
 #					tmp_test_acc = sess.run(test_accuracy, feed_dict={test_x: test_data_norm, test_y_: dataset.test_label})
@@ -294,6 +307,7 @@ class TF_Model():
 			tmp_train_acc.append(_acc)
 		train_acc = np.mean(tmp_train_acc)
 
+		sep_len = len(test_data_norm) // 100
 		tmp_test_acc = []
 		for sep in range(100):
 			pos = sep * sep_len
@@ -320,7 +334,7 @@ class TF_Model():
 			plt.close()
 		
 		sess.close()
-		tf.reset_default_graph()
+		tf.compat.v1.reset_default_graph()
 		
 		return train_acc, test_acc
 	
@@ -709,7 +723,8 @@ def main():
 							output_dims,
 							dropout_rate,
 							True)
-			test_x, test_y, test_y_ = tf_model.conv_net(input_dims,
+			test_x, test_y, test_y_ = tf_model.conv_net(
+							input_dims,
 							conv_channels, conv_kernel_size, pool_size, 
 							fc_channels,
 							output_dims,
@@ -723,6 +738,8 @@ def main():
 				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
 				weight_decay=params['weight_decay'][idx_param],
 				model_dir=model_dir)
+
+			print('train_acc: {}, test_acc: {}'.format(train_acc, test_acc))
 			
 			train_result_data_tmp = []
 			for key in sorted(params.keys()):
