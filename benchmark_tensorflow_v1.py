@@ -247,7 +247,7 @@ class TF_Model():
 		sess.run(init)
 		saver = tf.compat.v1.train.Saver()
 		
-		log_label = ['epoch', 'iter', 'train_loss', 'test_loss', 'train_acc', 'test_acc']
+		log_label = ['epoch', 'iter', 'sec per epoch', 'train_loss', 'test_loss', 'train_acc', 'test_acc']
 		log = []
 		print(log_label)
 		train_data_norm = dataset.get_normalized_data('train')
@@ -258,9 +258,11 @@ class TF_Model():
 #		log_interval = iter_minibatch // 5
 #		log_interval = iter_minibatch
 		log_interval = 5    # [epoch]
+		sec_per_epoch = []
 		for epoch in range(n_epoch):
+			time_epoch_start = time.time()
 			for _iter in range(iter_minibatch):
-				time_start = time.time()
+				time_iter_start = time.time()
 				batch_x, batch_y = dataset.next_batch(n_minibatch)
 				time_nextbatch = time.time()
 				sess.run(train_step, feed_dict={train_x: batch_x, train_y_: batch_y})
@@ -290,14 +292,18 @@ class TF_Model():
 						tmp_test_loss.append(np.mean(_loss))
 						tmp_test_acc.append(_acc)
 					time_test_loss_acc = time.time()
-#					print(time_start, time_nextbatch, time_train_step, time_train_loss_acc, time_test_loss_acc)
+#					print(time_iter_start, time_nextbatch, time_train_step, time_train_loss_acc, time_test_loss_acc)
 #					quit()
 
 #					tmp_test_loss = sess.run(loss, feed_dict={train_x: test_data_norm, train_y_: dataset.test_label})
 #					tmp_test_acc = sess.run(test_accuracy, feed_dict={test_x: test_data_norm, test_y_: dataset.test_label})
 
-					log.append([epoch, _iter, np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_test_acc)])
+					if (len(sec_per_epoch) > 0):
+						log.append([epoch, _iter, np.mean(sec_per_epoch), np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_test_acc)])
+					else:
+						log.append([epoch, _iter, 0, np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_test_acc)])
 					print(log[-1])
+			sec_per_epoch.append(time.time() - time_epoch_start)
 		
 		sep_len = len(train_data_norm) // 100
 		tmp_train_acc = []
