@@ -247,11 +247,13 @@ class TF_Model():
 		sess.run(init)
 		saver = tf.compat.v1.train.Saver()
 		
-		log_label = ['epoch', 'iter', 'sec per epoch', 'train_loss', 'test_loss', 'train_acc', 'test_acc']
+		log_label = ['epoch', 'iter', 'sec per epoch', 'train_loss', 'validation_loss', 'test_loss', 'train_acc', 'validation_acc', 'test_acc']
 		log = []
 		print(log_label)
 		train_data_norm = dataset.get_normalized_data('train')
 		print('train data loaded')
+		validation_data_norm = dataset.get_normalized_data('validation')
+		print('validation data loaded')
 		test_data_norm = dataset.get_normalized_data('test')
 		print('test data loaded')
 		iter_minibatch = len(train_data_norm) // n_minibatch
@@ -280,6 +282,19 @@ class TF_Model():
 						tmp_train_acc.append(_acc)
 					time_train_loss_acc = time.time()
 
+					# --- validation loss/acc ---
+					sep_len = len(validation_data_norm) // 100
+					tmp_validation_loss, tmp_validation_acc = [], []
+					for sep in range(100):
+						pos = sep * sep_len
+
+						_loss = sess.run(loss, feed_dict={train_x: validation_data_norm[pos:pos+sep_len], train_y_: dataset.validation_label[pos:pos+sep_len]})
+						_acc = sess.run(test_accuracy, feed_dict={test_x: validation_data_norm[pos:pos+sep_len], test_y_: dataset.validation_label[pos:pos+sep_len]})
+
+						tmp_validation_loss.append(np.mean(_loss))
+						tmp_validation_acc.append(_acc)
+					time_validation_loss_acc = time.time()
+
 					# --- test loss/acc ---
 					sep_len = len(test_data_norm) // 100
 					tmp_test_loss, tmp_test_acc = [], []
@@ -292,16 +307,16 @@ class TF_Model():
 						tmp_test_loss.append(np.mean(_loss))
 						tmp_test_acc.append(_acc)
 					time_test_loss_acc = time.time()
-#					print(time_iter_start, time_nextbatch, time_train_step, time_train_loss_acc, time_test_loss_acc)
+#					print(time_iter_start, time_nextbatch, time_train_step, time_train_loss_acc, time_validation_loss_acc, time_test_loss_acc)
 #					quit()
 
 #					tmp_test_loss = sess.run(loss, feed_dict={train_x: test_data_norm, train_y_: dataset.test_label})
 #					tmp_test_acc = sess.run(test_accuracy, feed_dict={test_x: test_data_norm, test_y_: dataset.test_label})
 
 					if (len(sec_per_epoch) > 0):
-						log.append([epoch, _iter, np.mean(sec_per_epoch), np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_test_acc)])
+						log.append([epoch, _iter, np.mean(sec_per_epoch), np.mean(tmp_train_loss), np.mean(tmp_validation_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_validation_acc), np.mean(tmp_test_acc)])
 					else:
-						log.append([epoch, _iter, 0, np.mean(tmp_train_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_test_acc)])
+						log.append([epoch, _iter, 0, np.mean(tmp_train_loss), np.mean(tmp_validation_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_validation_acc), np.mean(tmp_test_acc)])
 					print(log[-1])
 			sec_per_epoch.append(time.time() - time_epoch_start)
 		
@@ -312,6 +327,14 @@ class TF_Model():
 			_acc = sess.run(train_accuracy, feed_dict={train_x: train_data_norm[pos:pos+sep_len], train_y_: dataset.train_label[pos:pos+sep_len]})
 			tmp_train_acc.append(_acc)
 		train_acc = np.mean(tmp_train_acc)
+
+		sep_len = len(validation_data_norm) // 100
+		tmp_test_acc = []
+		for sep in range(100):
+			pos = sep * sep_len
+			_acc = sess.run(test_accuracy, feed_dict={test_x: validation_data_norm[pos:pos+sep_len], test_y_: dataset.validation_label[pos:pos+sep_len]})
+			tmp_validation_acc.append(_acc)
+		validation_acc = np.mean(tmp_validation_acc)
 
 		sep_len = len(test_data_norm) // 100
 		tmp_test_acc = []
@@ -342,7 +365,7 @@ class TF_Model():
 		sess.close()
 		tf.compat.v1.reset_default_graph()
 		
-		return train_acc, test_acc
+		return train_acc, validation_acc, test_acc
 	
 	def predict(self, dataset, model):
 		config = tf.compat.v1.ConfigProto(
@@ -484,22 +507,31 @@ class DataLoader():
 			validation_ratio: validation data ratio against training data
 		'''
 
-		def __set_data(train_data=None, train_label=None, test_data=None, test_label=None, validation_ratio=0.1):
+		def __set_data(train_data=None, train_label=None, validation_data=None, validation_label=None, test_data=None, test_label=None):
 
 			self.train_data = train_data
 			self.train_label = train_label
+			self.validation_data = validation_data
+			self.validation_label = validation_label
 			self.test_data = test_data
 			self.test_label = test_label
 			
 			if (self.train_data is not None):
 				self.n_train_data = len(self.train_data)
-				self.n_test_data = len(self.test_data)
+				self.idx_train_data = list(range(self.n_train_data))
+			else:
+				self.n_train_data = 0
+				self.idx_train_data = []
+
+			if (self.validation_data is not None):
+				self.n_validation_data = len(self.validation_data)
+				self.idx_validation_data = list(range(self.n_validation_data))
 			else:
 				self.n_train_data = 0
 				self.idx_train_data = []
 
 			if (self.test_data is not None):
-				self.idx_train_data = list(range(self.n_train_data))
+				self.n_test_data = len(self.test_data)
 				self.idx_test_data = list(range(self.n_test_data))
 			else:
 				self.n_test_data = 0
@@ -529,12 +561,21 @@ class DataLoader():
 			# --- load train data ---
 			train_files = ['data_batch_1', 'data_batch_2', 'data_batch_3', 'data_batch_4', 'data_batch_5']
 			dataset = unpickle(os.path.join(dataset_dir, train_files[0]))
-			train_images = dataset[b'data']
-			train_labels = [identity[i] for i in dataset[b'labels']]
+			train_images_all = dataset[b'data']
+			train_labels_all = [identity[i] for i in dataset[b'labels']]
 			for train_file in train_files[1:]:
 				dataset = unpickle(os.path.join(dataset_dir, train_file))
-				train_images = np.vstack((train_images, dataset[b'data']))
-				train_labels = np.vstack((train_labels, [identity[i] for i in dataset[b'labels']]))
+				train_images_all = np.vstack((train_images_all, dataset[b'data']))
+				train_labels_all = np.vstack((train_labels_all, [identity[i] for i in dataset[b'labels']]))
+
+			train_index = np.arange(len(train_images_all))
+			np.random.shuffle(train_index)
+
+			train_images = train_images_all[train_index[:int(len(train_images_all) * (1-validation_ratio))]]
+			train_labels = train_labels_all[train_index[:int(len(train_labels_all) * (1-validation_ratio))]]
+
+			validation_images = train_images_all[train_index[int(len(train_images_all) * (1-validation_ratio)):]]
+			validation_labels = train_labels_all[train_index[int(len(train_labels_all) * (1-validation_ratio)):]]
 			
 			# --- load test data ---
 			dataset = unpickle(os.path.join(dataset_dir, 'test_batch'))
@@ -543,9 +584,18 @@ class DataLoader():
 
 			# --- transpose: [N, C, H, W] -> [N, H, W, C] ---
 			train_images = train_images.reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)	# N, C, H, W → N, H, W, C
+			validation_images = validation_images.reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)	# N, C, H, W → N, H, W, C
 			test_images = test_images.reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)		# N, C, H, W → N, H, W, C
 			
-			__set_data(train_images, train_labels, test_images, test_labels, validation_ratio)
+			__set_data(
+				train_data=train_images, train_label=train_labels,
+				validation_data = validation_images, validation_label = validation_labels, 
+				test_data = test_images, test_label = test_labels)
+
+			print('<< cifar10 data shape >>')
+			print('   train data: {}'.format(train_images.shape))
+			print('   validation data: {}'.format(validation_images.shape))
+			print('   test data: {}'.format(test_images.shape))
 			
 		else:
 			print('[ERROR] unknown dataset_type ... {}'.format(self.dataset_type))
@@ -560,8 +610,7 @@ class DataLoader():
 		if (data_type == 'train'):
 		    return self.train_data / 255
 		elif (data_type == 'validation'):
-		    # T.B.D
-		    pass
+		    return self.validation_data / 255
 		else:
 		    return self.test_data / 255
 		
@@ -638,8 +687,8 @@ class DataLoader():
 		    scaling_coef = 0.4
 
 		    # --- rotation ---
-		    #   -15deg to +15deg
-		    rotation_coef = 15
+		    #   -10deg to +10deg
+		    rotation_coef = 10
 
 		    # --- shift ---
 		    #   -2pix to +2pix
@@ -654,7 +703,7 @@ class DataLoader():
 
 			    train_data[i] = random_erasing(train_data[i].copy())
 			    train_data[i] = img_scaling(train_data[i], scale_rate)
-			    # train_data[i] = img_rotate(train_data[i], angle)
+			    train_data[i] = img_rotate(train_data[i], angle)
 			    train_data[i] = img_shift(train_data[i], shifts)
 
 			    if (flip_idx[0] == 0):
@@ -688,6 +737,7 @@ def main():
 			if (key != 'n_conditions'):
 				train_result_header.append(key)
 		train_result_header.append('train accuracy')
+		train_result_header.append('validation accuracy')
 		train_result_header.append('test accuracy')
 		train_result_data = []
 		
@@ -737,7 +787,7 @@ def main():
 							dropout_rate,
 							False)
 			print('train')
-			train_acc, test_acc = tf_model.train(dataset,
+			train_acc, validation_acc, test_acc = tf_model.train(dataset,
 				train_x, train_y, train_y_, 
 				test_x, test_y, test_y_, 
 				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
@@ -745,13 +795,14 @@ def main():
 				weight_decay=params['weight_decay'][idx_param],
 				model_dir=model_dir)
 
-			print('train_acc: {}, test_acc: {}'.format(train_acc, test_acc))
+			print('train_acc: {}, validation_acc: {}, test_acc: {}'.format(train_acc, validation_acc, test_acc))
 			
 			train_result_data_tmp = []
 			for key in sorted(params.keys()):
 				if (key != 'n_conditions'):
 					train_result_data_tmp.append(params[key][idx_param])
 			train_result_data_tmp.append(train_acc)
+			train_result_data_tmp.append(validation_acc)
 			train_result_data_tmp.append(test_acc)
 			train_result_data.append(train_result_data_tmp)
 			
