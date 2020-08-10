@@ -75,7 +75,7 @@ class TF_Model():
 				var = tf.compat.v1.get_variable('Weight{}'.format(id), shape=shape, initializer=init)
 		
 		def bias_variable(shape, scope, id=0):
-			init = tf.constant_initializer([0.1])
+			init = tf.constant_initializer([0.0])
 			with tf.compat.v1.variable_scope(scope, reuse=tf.compat.v1.AUTO_REUSE):
 				var = tf.compat.v1.get_variable('Bias{}'.format(id), shape=shape, initializer=init)
 		
@@ -158,8 +158,8 @@ class TF_Model():
 				prev_channel = _conv_channel
 			
 			h_conv = tf.nn.relu(h_out)
-			if (is_train):
-				h_conv = tf.compat.v1.layers.dropout(h_conv, dropout_rate)
+#			if (is_train):
+#				h_conv = tf.compat.v1.layers.dropout(h_conv, dropout_rate)
 			
 			#h_out_shape = np.array([h_out_shape[0] / _pool_size, h_out_shape[1] / _pool_size, _conv_channel], dtype=np.int)
 			h_conv_shape = h_conv.get_shape().as_list()[1:]
@@ -691,8 +691,8 @@ class DataLoader():
 		    rotation_coef = 10
 
 		    # --- shift ---
-		    #   -2pix to +2pix
-		    shift_coef = 2
+		    #   -4pix to +4pix
+		    shift_coef = 4
 
 		    for i in range(n_minibatch):
 			    np.random.shuffle(flip_idx)
@@ -703,7 +703,7 @@ class DataLoader():
 
 			    train_data[i] = random_erasing(train_data[i].copy())
 			    train_data[i] = img_scaling(train_data[i], scale_rate)
-			    train_data[i] = img_rotate(train_data[i], angle)
+			    #train_data[i] = img_rotate(train_data[i], angle)
 			    train_data[i] = img_shift(train_data[i], shifts)
 
 			    if (flip_idx[0] == 0):
