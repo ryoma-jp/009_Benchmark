@@ -209,7 +209,7 @@ class TF_Model():
 				train_x, train_y, train_y_, 
 				test_x, test_y, test_y_, 
 				n_epoch=32, n_minibatch=32,
-				optimizer='SGD', learning_rate=0.001,
+				optimizer='SGD', learning_rate_value=0.001,
 				weight_decay=0.001,
 				model_dir='model'):
 		
@@ -223,6 +223,7 @@ class TF_Model():
 				print(weight.name)
 				loss = loss + weight_decay * tf.nn.l2_loss(weight)
 		
+		learning_rate = tf.compat.v1.placeholder(tf.float32)
 		if (optimizer == 'SGD'):
 			train_step = tf.compat.v1.train.GradientDescentOptimizer(learning_rate).minimize(loss)
 		elif (optimizer == 'Adam'):
@@ -247,7 +248,7 @@ class TF_Model():
 		sess.run(init)
 		saver = tf.compat.v1.train.Saver()
 		
-		log_label = ['epoch', 'iter', 'sec per epoch', 'train_loss', 'validation_loss', 'test_loss', 'train_acc', 'validation_acc', 'test_acc', 'min_loss', 'early_stopping_counter']
+		log_label = ['epoch', 'iter', 'learning rate', 'sec per epoch', 'train_loss', 'validation_loss', 'test_loss', 'train_acc', 'validation_acc', 'test_acc', 'min_loss', 'early_stopping_counter']
 		log = []
 		print(log_label)
 		train_data_norm = dataset.get_normalized_data('train')
@@ -265,6 +266,8 @@ class TF_Model():
 		epoch = 0
 		early_stopping_counter = 0
 		early_stopping_th = 5
+		lr_decay_counter = 0
+		lr_decay_th = 3
 #		for epoch in range(n_epoch):
 		while (early_stopping_counter < early_stopping_th):
 			time_epoch_start = time.time()
@@ -272,7 +275,7 @@ class TF_Model():
 				time_iter_start = time.time()
 				batch_x, batch_y = dataset.next_batch(n_minibatch)
 				time_nextbatch = time.time()
-				sess.run(train_step, feed_dict={train_x: batch_x, train_y_: batch_y})
+				sess.run(train_step, feed_dict={train_x: batch_x, train_y_: batch_y, learning_rate: learning_rate_value})
 				time_train_step = time.time()
 				
 #				if ((_iter+1) % log_interval == 0):
@@ -287,12 +290,18 @@ class TF_Model():
 						tmp_train_acc.append(_acc)
 					time_train_loss_acc = time.time()
 
+					# --- Early Stopping, Learning Rate Decay ---
 					if (min_loss > 0):
 						if (min_loss < np.mean(tmp_train_loss)):
 							early_stopping_counter += 1
 						else:
 							early_stopping_counter = 0
 						min_loss = min(min_loss, np.mean(tmp_train_loss))
+
+						if ((early_stopping_counter >= early_stopping_th) and (lr_decay_counter < lr_decay_th)):
+							lr_decay_counter += 1
+							early_stopping_counter = 0
+							learning_rate_value = learning_rate_value / 5
 					else:
 						min_loss = np.mean(tmp_train_loss)
 
@@ -328,9 +337,9 @@ class TF_Model():
 #					tmp_test_acc = sess.run(test_accuracy, feed_dict={test_x: test_data_norm, test_y_: dataset.test_label})
 
 					if (len(sec_per_epoch) > 0):
-						log.append([epoch, _iter, np.mean(sec_per_epoch), np.mean(tmp_train_loss), np.mean(tmp_validation_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_validation_acc), np.mean(tmp_test_acc), min_loss, early_stopping_counter])
+						log.append([epoch, _iter, learning_rate_value, np.mean(sec_per_epoch), np.mean(tmp_train_loss), np.mean(tmp_validation_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_validation_acc), np.mean(tmp_test_acc), min_loss, early_stopping_counter])
 					else:
-						log.append([epoch, _iter, 0, np.mean(tmp_train_loss), np.mean(tmp_validation_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_validation_acc), np.mean(tmp_test_acc), min_loss, early_stopping_counter])
+						log.append([epoch, _iter, learning_rate_value, 0, np.mean(tmp_train_loss), np.mean(tmp_validation_loss), np.mean(tmp_test_loss), np.mean(tmp_train_acc), np.mean(tmp_validation_acc), np.mean(tmp_test_acc), min_loss, early_stopping_counter])
 					print(log[-1])
 			sec_per_epoch.append(time.time() - time_epoch_start)
 			epoch += 1
@@ -634,7 +643,8 @@ class DataLoader():
 			'''
 				img: image
 			'''
-			size = [random.randint(3, 10) for _i in range(2)]
+#			size = [random.randint(3, 10) for _i in range(2)]
+			size = [random.randint(10, 16) for _i in range(2)]
 			pos = [np.clip(random.randint(0, img.shape[i]), 0, img.shape[i]-size[i]) for i in range(2)]
 			color = random.randint(0, 255)
 			img_erased = img
@@ -806,7 +816,7 @@ def main():
 				train_x, train_y, train_y_, 
 				test_x, test_y, test_y_, 
 				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
-				optimizer=params['optimizer'][idx_param], learning_rate=params['learning_rate'][idx_param],
+				optimizer=params['optimizer'][idx_param], learning_rate_value=params['learning_rate'][idx_param],
 				weight_decay=params['weight_decay'][idx_param],
 				model_dir=model_dir)
 
