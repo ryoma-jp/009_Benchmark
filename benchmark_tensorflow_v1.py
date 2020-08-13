@@ -131,16 +131,16 @@ class TF_Model():
 				b = tf.compat.v1.get_variable('Bias{}'.format(id))
 				return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME') + b
 		
-		def affine(x, scope, id=0):
+		def affine(x, scope, id=0, name=None):
 			with tf.compat.v1.variable_scope(scope, reuse=True):
 				W = tf.compat.v1.get_variable('Weight{}'.format(id))
 				b = tf.compat.v1.get_variable('Bias{}'.format(id))
-				return tf.matmul(x, W) + b
+				return tf.math.add(tf.matmul(x, W), b, name=name)
 		
 		def max_pool(x, size):
 			return tf.nn.max_pool2d(x, ksize=[1, size, size, 1], strides=[1, size, size, 1], padding='SAME')
 		
-		x = tf.compat.v1.placeholder(tf.float32, input_dims)
+		x = tf.compat.v1.placeholder(tf.float32, input_dims, name='Input')
 		y_ = tf.compat.v1.placeholder(tf.float32, output_dims)
 		
 		# convolution layer
@@ -193,7 +193,7 @@ class TF_Model():
 		
 		weight_variable([prev_channel, output_dims[-1]], 'FCLayer{}'.format(i))
 		bias_variable([output_dims[-1]], 'FCLayer{}'.format(i))
-		y = affine(h_out, 'FCLayer{}'.format(i))
+		y = affine(h_out, 'FCLayer{}'.format(i), name='Output')
 		
 		if (is_train):
 			tf.compat.v1.add_to_collection('train_input', x)
@@ -247,6 +247,12 @@ class TF_Model():
 		sess = tf.compat.v1.Session(config=config)
 		sess.run(init)
 		saver = tf.compat.v1.train.Saver()
+
+#		saver.save(sess, os.path.join(model_dir, 'model.ckpt'))
+		self.get_ops(os.path.join(model_dir, 'ops.txt'))
+		with open(os.path.join(model_dir, 'node_name.yaml'), 'w') as f:
+			f.write('input_node_name: \'{}\'\n'.format(test_x.name[:test_x.name.find(':')]))
+			f.write('output_node_name: \'{}\'\n'.format(test_y.name[:test_y.name.find(':')]))
 		
 		log_label = ['epoch', 'iter', 'learning rate', 'sec per epoch', 'train_loss', 'validation_loss', 'test_loss', 'train_acc', 'validation_acc', 'test_acc', 'min_loss', 'early_stopping_counter']
 		log = []
