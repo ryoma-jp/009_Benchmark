@@ -70,7 +70,8 @@ class TF_Model():
 		"""
 		
 		def weight_variable(shape, scope, id=0):
-			init = tf.truncated_normal_initializer(mean=0.0, stddev=0.01)
+#			init = tf.truncated_normal_initializer(mean=0.0, stddev=0.01)
+			init = tf.truncated_normal_initializer(mean=0.0, stddev=((2 / np.prod(shape)) ** 0.5))
 			with tf.compat.v1.variable_scope(scope, reuse=tf.compat.v1.AUTO_REUSE):
 				var = tf.compat.v1.get_variable('Weight{}'.format(id), shape=shape, initializer=init)
 		
@@ -151,6 +152,7 @@ class TF_Model():
 			print(_conv_channel, _conv_kernel_size, _pool_size, prev_channel)
 			
 			for ii in range(2):
+#			for ii in range(1):
 				weight_variable([_conv_kernel_size, _conv_kernel_size, prev_channel, _conv_channel], 'ConvLayer{}'.format(i), ii)
 				bias_variable([_conv_channel], 'ConvLayer{}'.format(i), ii)
 				h_out = conv2d(h_out, 'ConvLayer{}'.format(i), ii)
@@ -172,6 +174,8 @@ class TF_Model():
 				h_out = max_pool(h_bn, _pool_size)
 			else:
 				h_out = max_pool(h_conv, _pool_size)
+#			if (is_train):
+#				h_out = tf.compat.v1.layers.dropout(h_out, dropout_rate)
 			h_out_shape = h_out.get_shape().as_list()[1:]
 			
 			prev_channel = _conv_channel
@@ -222,12 +226,22 @@ class TF_Model():
 			if ('W_' in weight.name):
 				print(weight.name)
 				loss = loss + weight_decay * tf.nn.l2_loss(weight)
+
+#		weight_list = []
+#		for weight in weights:
+#			if ('W_' in weight.name):
+#				print(weight.name)
+#				weight_list.append(weight)
+#		for i in range(len(weight_list)-1):
+#			loss = loss + (tf.nn.l2_loss(weight_list[i])/tf.nn.l2_loss(weight_list[i+1]) - 1)
 		
 		learning_rate = tf.compat.v1.placeholder(tf.float32)
 		if (optimizer == 'SGD'):
 			train_step = tf.compat.v1.train.GradientDescentOptimizer(learning_rate).minimize(loss)
 		elif (optimizer == 'Adam'):
 			train_step = tf.compat.v1.train.AdamOptimizer(learning_rate).minimize(loss)
+		elif (optimizer == 'RMSProp'):
+			train_step = tf.compat.v1.train.RMSPropOptimizer(learning_rate, decay=1e-6).minimize(loss)
 		else:
 			print('[ERROR] unknown optimizer: {}'.format(optimizer))
 			quit()
@@ -539,19 +553,27 @@ class DataLoader():
 
 		def __set_data(train_data=None, train_label=None, validation_data=None, validation_label=None, test_data=None, test_label=None):
 
-			self.train_data = train_data
+			self.train_data = train_data.astype('float32')
 			self.train_label = train_label
-			self.validation_data = validation_data
+			self.validation_data = validation_data.astype('float32')
 			self.validation_label = validation_label
-			self.test_data = test_data
+			self.test_data = test_data.astype('float32')
 			self.test_label = test_label
 			
 			if (self.train_data is not None):
 				self.n_train_data = len(self.train_data)
 				self.idx_train_data = list(range(self.n_train_data))
+				self.mean_train_data = np.mean(self.train_data, axis=(0, 1, 2, 3))
+				self.std_train_data = np.std(self.train_data, axis=(0, 1, 2, 3))
+				print(self.mean_train_data, self.std_train_data)
+				print(np.min((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
+				print(np.max((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
+#				quit()
 			else:
 				self.n_train_data = 0
 				self.idx_train_data = []
+				self.mean_train_data = 0
+				self.std_train_data = 255
 
 			if (self.validation_data is not None):
 				self.n_validation_data = len(self.validation_data)
@@ -633,16 +655,20 @@ class DataLoader():
 		
 		return
 	
+	def _normalize_data(self, data):
+		return (data - self.mean_train_data) / (self.std_train_data + 1e-7)
+#		return ret_data / 255
+		
 	def get_normalized_data(self, data_type):
 		'''
 			data_type: type of data('train', 'validation', 'test')
 		'''
 		if (data_type == 'train'):
-		    return self.train_data / 255
+			return self._normalize_data(self.train_data)
 		elif (data_type == 'validation'):
-		    return self.validation_data / 255
+			return self._normalize_data(self.validation_data)
 		else:
-		    return self.test_data / 255
+			return self._normalize_data(self.test_data)
 		
 	def next_batch(self, n_minibatch):
 		def random_erasing(img):
@@ -707,7 +733,8 @@ class DataLoader():
 		    #   1: up down
 		    #   2: left right
 		    #   3: up down and left right
-		    flip_idx = [0, 1, 2, 3]
+#		    flip_idx = [0, 1, 2, 3]
+		    flip_idx = [0, 2]
 
 		    # --- brightness ---
 		    #   x0.8 to x1.2
@@ -746,7 +773,7 @@ class DataLoader():
 			    else:
 				    train_data[i] = np.clip(np.flipud(np.fliplr(train_data[i])) + brightness, 0, 255)
 
-		return train_data / 255, train_label
+		return self._normalize_data(train_data), train_label
 
 #---------------------------------
 # メイン処理
