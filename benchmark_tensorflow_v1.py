@@ -209,13 +209,14 @@ class TF_Model():
 		
 		return x, y, y_
 		
-	def train(self, dataset,
-				train_x, train_y, train_y_, 
-				test_x, test_y, test_y_, 
-				n_epoch=32, n_minibatch=32,
-				optimizer='SGD', learning_rate_value=0.001,
-				weight_decay=0.001,
-				model_dir='model'):
+	def train(self,
+			dataset, da_params,
+			train_x, train_y, train_y_, 
+			test_x, test_y, test_y_, 
+			n_epoch=32, n_minibatch=32,
+			optimizer='SGD', learning_rate_value=0.001,
+			weight_decay=0.001,
+			model_dir='model'):
 		
 #		weight_name = get_weight_name()
 #		print(weight_name)
@@ -280,7 +281,7 @@ class TF_Model():
 		iter_minibatch = len(train_data_norm) // n_minibatch
 #		log_interval = iter_minibatch // 5
 #		log_interval = iter_minibatch
-		log_interval = 5    # [epoch]
+		log_interval = 5	# [epoch]
 		sec_per_epoch = []
 		min_loss = 0
 		epoch = 0
@@ -293,7 +294,7 @@ class TF_Model():
 			time_epoch_start = time.time()
 			for _iter in range(iter_minibatch):
 				time_iter_start = time.time()
-				batch_x, batch_y = dataset.next_batch(n_minibatch)
+				batch_x, batch_y = dataset.next_batch(n_minibatch, da_params)
 				time_nextbatch = time.time()
 				sess.run(train_step, feed_dict={train_x: batch_x, train_y_: batch_y, learning_rate: learning_rate_value})
 				time_train_step = time.time()
@@ -670,13 +671,36 @@ class DataLoader():
 		else:
 			return self._normalize_data(self.test_data)
 		
-	def next_batch(self, n_minibatch):
-		def random_erasing(img):
+	def next_batch(self, n_minibatch, da_params):
+		# --- da_params ---
+		# * TYPE_CIFAR10
+		#     'random flip'
+		#       0: none
+		#       1: up down
+		#       2: left right
+		#       3: up down and left right
+		#
+		#     'brightness'
+		#       brightness rate
+		#
+		#     'scaling'
+		#       scaling rate
+		#
+		#     'rotation'
+		#       rotation range [deg]
+		#
+		#     'shift'
+		#       shift pixel [pix]
+		#
+		#     'random erasing'
+		#       random erasing size (width, height) [pix]
+
+		def random_erasing(img, size):
 			'''
 				img: image
 			'''
 #			size = [random.randint(3, 10) for _i in range(2)]
-			size = [random.randint(10, 16) for _i in range(2)]
+			size = [random.randint(size[0], size[1]) for _i in range(2)]
 			pos = [np.clip(random.randint(0, img.shape[i]), 0, img.shape[i]-size[i]) for i in range(2)]
 			color = random.randint(0, 255)
 			img_erased = img
@@ -724,54 +748,37 @@ class DataLoader():
 
 
 		index = random.sample(self.idx_train_data, n_minibatch)
-		train_data = self.train_data[index]
+		train_data = self.train_data[index].copy()
 		train_label = self.train_label[index]
 
 		if (self.dataset_type == self.TYPE_CIFAR10):
-		    # --- random flip ---
-		    #   0: none
-		    #   1: up down
-		    #   2: left right
-		    #   3: up down and left right
-#		    flip_idx = [0, 1, 2, 3]
-		    flip_idx = [0, 2]
+			flip_idx = da_params['random_flip']
+			brightness_coef = da_params['brightness']
+			scaling_coef = da_params['scaling']
+			rotation_coef = da_params['rotation']
+			shift_coef = da_params['shift']
+			random_erasing_size = da_params['random_erasing']
 
-		    # --- brightness ---
-		    #   x0.8 to x1.2
-		    brightness_coef = 0.2
+			for i in range(n_minibatch):
+				np.random.shuffle(flip_idx)
+				brightness = random.randint(-(brightness_coef * 255), brightness_coef * 255)
+				angle = random.randint(-rotation_coef, rotation_coef)
+				shifts = np.array([random.randint(-shift_coef, shift_coef) for i in range(2)])
+				scale_rate = (2*(random.random()-0.5) * scaling_coef) + 1.0
 
-		    # --- scaling ---
-		    #   x0.8 to x1.2
-		    scaling_coef = 0.4
+				train_data[i] = random_erasing(train_data[i], random_erasing_size)
+				train_data[i] = img_scaling(train_data[i], scale_rate)
+				train_data[i] = img_rotate(train_data[i], angle)
+				train_data[i] = img_shift(train_data[i], shifts)
 
-		    # --- rotation ---
-		    #   -10deg to +10deg
-		    rotation_coef = 10
-
-		    # --- shift ---
-		    #   -4pix to +4pix
-		    shift_coef = 4
-
-		    for i in range(n_minibatch):
-			    np.random.shuffle(flip_idx)
-			    brightness = random.randint(-(brightness_coef * 255), brightness_coef * 255)
-			    angle = random.randint(-rotation_coef, rotation_coef)
-			    shifts = np.array([random.randint(-shift_coef, shift_coef) for i in range(2)])
-			    scale_rate = ((random.random()-0.5) * scaling_coef) + 1.0
-
-			    train_data[i] = random_erasing(train_data[i].copy())
-			    train_data[i] = img_scaling(train_data[i], scale_rate)
-			    #train_data[i] = img_rotate(train_data[i], angle)
-			    train_data[i] = img_shift(train_data[i], shifts)
-
-			    if (flip_idx[0] == 0):
-				    train_data[i] = np.clip(train_data[i] + brightness, 0, 255)
-			    elif (flip_idx[0] == 1):
-				    train_data[i] = np.clip(np.flipud(train_data[i]) + brightness, 0, 255)
-			    elif (flip_idx[0] == 2):
-				    train_data[i] = np.clip(np.fliplr(train_data[i]) + brightness, 0, 255)
-			    else:
-				    train_data[i] = np.clip(np.flipud(np.fliplr(train_data[i])) + brightness, 0, 255)
+				if (flip_idx[0] == 0):
+					train_data[i] = np.clip(train_data[i] + brightness, 0, 255)
+				elif (flip_idx[0] == 1):
+					train_data[i] = np.clip(np.flipud(train_data[i]) + brightness, 0, 255)
+				elif (flip_idx[0] == 2):
+					train_data[i] = np.clip(np.fliplr(train_data[i]) + brightness, 0, 255)
+				else:
+					train_data[i] = np.clip(np.flipud(np.fliplr(train_data[i])) + brightness, 0, 255)
 
 		return self._normalize_data(train_data), train_label
 
@@ -823,6 +830,14 @@ def main():
 			tf_model = TF_Model()
 			
 			print('load model')
+			da_params = {}
+			da_params['random_flip'] = params['da_random_flip'][idx_param]
+			da_params['brightness'] = params['da_brightness_coef'][idx_param]
+			da_params['scaling'] = params['da_scaling_rate'][idx_param]
+			da_params['rotation'] = params['da_rotation'][idx_param]
+			da_params['shift'] = params['da_shift_pix'][idx_param]
+			da_params['random_erasing'] = params['da_random_erasing'][idx_param]
+
 			input_dims = np.hstack(([None], dataset.train_data.shape[1:]))
 			conv_channels = params['conv_channels'][idx_param]
 			conv_kernel_size = params['conv_kernel_size'][idx_param]
@@ -845,7 +860,8 @@ def main():
 							dropout_rate,
 							False)
 			print('train')
-			train_acc, validation_acc, test_acc = tf_model.train(dataset,
+			train_acc, validation_acc, test_acc = tf_model.train(
+				dataset, da_params,
 				train_x, train_y, train_y_, 
 				test_x, test_y, test_y_, 
 				n_epoch=params['n_epoch'][idx_param], n_minibatch=params['n_minibatch'][idx_param],
