@@ -14,7 +14,7 @@ import yaml
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
+#from tensorflow.examples.tutorials.mnist import input_data
 import cv2
 
 import matplotlib.pyplot as plt
@@ -544,10 +544,11 @@ class TF_Model():
 class DataLoader():
 	# --- constant ---
 	TYPE_CIFAR10 = 'cifar10'
+	TYPE_COCO2014 = 'coco2014'
 
 	def __init__(self, dataset_type=TYPE_CIFAR10, dataset_dir=None, validation_ratio=0.1):
 		'''
-			dataset_type: data type('cifar10', ...(T.B.D))
+			dataset_type: data type('cifar10', 'coco2014', ...(T.B.D))
 			dataset_dir: dataset directory
 			validation_ratio: validation data ratio against training data
 		'''
@@ -602,6 +603,7 @@ class DataLoader():
 			dataset = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
 			__set_data(dataset.train.images, dataset.train.labels, dataset.test.images, dataset.test.labels)
 			img_shape = [28, 28, 1]		# H, W, C
+
 		elif (self.dataset_type == self.TYPE_CIFAR10):
 			def unpickle(file):
 				import pickle
@@ -650,6 +652,17 @@ class DataLoader():
 			print('   validation data: {}'.format(validation_images.shape))
 			print('   test data: {}'.format(test_images.shape))
 			
+		elif (self.dataset_type == self.TYPE_COCO2014):
+			from pycocotools.coco import COCO
+
+			annotation_dir = os.path.join(dataset_dir, 'annotations')
+			val_dir = os.path.join(dataset_dir, 'val2014')
+
+			# --- Initialize COCO ground truth api ---
+			annFile = os.path.join(annotation_dir, 'person_keypoints_val2014.json')
+			cocoGt = COCO(annFile)
+			print(cocoGt)
+
 		else:
 			print('[ERROR] unknown dataset_type ... {}'.format(self.dataset_type))
 			quit()
