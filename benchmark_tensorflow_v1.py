@@ -286,7 +286,8 @@ class TF_Model():
 		min_loss = 0
 		epoch = 0
 		early_stopping_counter = 0
-		early_stopping_th = 5
+#		early_stopping_th = 5
+		early_stopping_th = 3
 		lr_decay_counter = 0
 		lr_decay_th = 3
 #		for epoch in range(n_epoch):
