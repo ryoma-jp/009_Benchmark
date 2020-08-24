@@ -11,6 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'cocoapi/PythonAPI'))
 #---------------------------------
 # モジュールのインポート
 #---------------------------------
+import numpy as np
 import pandas as pd
 import argparse
 
@@ -20,6 +21,7 @@ from benchmark_tensorflow_v1 import DataLoader
 #---------------------------------
 # 定数定義
 #---------------------------------
+MSCOCO_MINIVAL_IDS = "mscoco_minival_ids.txt"
 
 #---------------------------------
 # 関数
@@ -47,8 +49,12 @@ def main():
 	print(args.dataset_dir)
 	print(args.model)
 
+	# --- Load MSCOCO minival ids ---
+	mscoco_minival_ids = np.loadtxt(MSCOCO_MINIVAL_IDS, delimiter="\n", dtype=int)
+	print(mscoco_minival_ids)
+
 	# --- Load COCO dataset ---
-	dataset = DataLoader(dataset_type=args.dataset_type, dataset_dir=args.dataset_dir)
+	dataset = DataLoader(dataset_type=args.dataset_type, dataset_dir=args.dataset_dir, load_ids_test=mscoco_minival_ids)
 
 	return
 

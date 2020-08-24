@@ -3,6 +3,7 @@
 #---------------------------------
 # モジュールのインポート
 #---------------------------------
+import skimage.io as io
 import os
 import sys
 import tqdm
@@ -546,7 +547,9 @@ class DataLoader():
 	TYPE_CIFAR10 = 'cifar10'
 	TYPE_COCO2014 = 'coco2014'
 
-	def __init__(self, dataset_type=TYPE_CIFAR10, dataset_dir=None, validation_ratio=0.1):
+	def __init__(self, dataset_type=TYPE_CIFAR10, dataset_dir=None, validation_ratio=0.1,
+					load_ids_train=None, load_ids_test=None,
+					img_resize=(300, 300)):
 		'''
 			dataset_type: data type('cifar10', 'coco2014', ...(T.B.D))
 			dataset_dir: dataset directory
@@ -657,11 +660,38 @@ class DataLoader():
 
 			annotation_dir = os.path.join(dataset_dir, 'annotations')
 			val_dir = os.path.join(dataset_dir, 'val2014')
+			img_file_prefix = 'COCO_val2014_'
 
 			# --- Initialize COCO ground truth api ---
 			annFile = os.path.join(annotation_dir, 'person_keypoints_val2014.json')
 			cocoGt = COCO(annFile)
-			print(cocoGt)
+#			print(cocoGt.info())
+
+#			cocoGt.createIndex()
+#			print(cocoGt.anns)
+#			cocoGt.showAnns(cocoGt.anns[0:10])
+
+# --- from val2014(val_dir) ---
+			# --- Load Imgs ---
+			imgs = []
+			for idx in tqdm.tqdm(load_ids_test):
+				img_file = os.path.join(val_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
+#				print(img_file)
+				img = cv2.imread(img_file)
+				img = cv2.resize(img, img_resize)
+				imgs.append(img)
+			imgs = np.array(imgs)
+			print(imgs.shape)
+
+# --- from url ---
+#			# --- Load Imgs ---
+#			imgs = cocoGt.loadImgs(load_ids_test)
+#
+#			# --- Show Img ---
+#			img = io.imread(imgs[0]['coco_url'])
+#			plt.axis('off')
+#			plt.imshow(img)
+#			plt.savefig('img_{}.jpg'.format(load_ids_test[0]))
 
 		else:
 			print('[ERROR] unknown dataset_type ... {}'.format(self.dataset_type))
