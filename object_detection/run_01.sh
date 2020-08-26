@@ -3,7 +3,8 @@
 # --- set environment ---
 
 export CUR_DIR=${PWD}
-export DATASET_DIR=/media/pi/FA80CEC380CE861B/
+#export DATASET_DIR=/media/pi/FA80CEC380CE861B/
+export DATASET_DIR=/work/MachineLearning/dataset/coco2014
 
 # --- download dataset ---
 #mkdir -p ${DATASET_DIR}

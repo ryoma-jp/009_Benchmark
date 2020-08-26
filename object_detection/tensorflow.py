@@ -16,7 +16,7 @@ import pandas as pd
 import argparse
 
 import tensorflow as tf
-from benchmark_tensorflow_v1 import DataLoader
+from data_loader import DataLoader
 
 #---------------------------------
 # 定数定義
