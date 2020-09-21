@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import cv2
 import matplotlib.pyplot as plt
+from collections import OrderedDict
 
 #---------------------------------
 # クラス
@@ -136,21 +137,69 @@ class DataLoader():
 			img_file_prefix = 'COCO_val2014_'
 
 			# --- Initialize COCO ground truth api ---
-			annFile = os.path.join(annotation_dir, 'person_keypoints_val2014.json')
+			annFile = os.path.join(annotation_dir, 'instances_val2014.json')
 			cocoGt = COCO(annFile)
-#			print(cocoGt.info())
 
-#			cocoGt.createIndex()
-#			print(cocoGt.anns)
-#			cocoGt.showAnns(cocoGt.anns[0:10])
+			# --- Load Categories ---
+			coco_CatIds = cocoGt.getCatIds()
+#			cats = cocoGt.loadCats(cocoGt.getCatIds())
+#			imgIds = cocoGt.getImgIds()
+#			print(imgIds)
+#			imgIds = cocoGt.getImgIds()
+#			print(imgIds)
+#			nms = [cat['name'] for cat in cats[0:10]]
+#			print('COCO categories: \n{}\n'.format(' '.join(nms)))
+
+			# --- Load Annotations ---
+			coco_Imgs = cocoGt.loadImgs(load_ids_test)
+			coco_AnnIds = cocoGt.getAnnIds(imgIds=load_ids_test, catIds=coco_CatIds, iscrowd=None)
+			coco_Anns = cocoGt.loadAnns(coco_AnnIds)
+
+#			print(coco_Anns[0:10])
+#			print(coco_Anns[0].keys())
+
+			labels = OrderedDict({'image_id': [], 'bbox': [], 'category_id': []})
+			cnt = 0
+			for idx in load_ids_test[0:10]:
+				labels['image_id'].append(coco_Anns[cnt]['image_id'])
+
+				bbox = []
+				while (idx == coco_Anns[cnt]['image_id']):
+					bbox.append(coco_Anns[cnt]['bbox'])
+					labels['category_id'].append(coco_Anns[cnt]['category_id'])
+					cnt += 1
+				labels['bbox'].append(bbox)
+#			print(labels['image_id'][0:10])
+#			print(labels['bbox'][0:10])
+#			print(labels['category_id'][0:10])
 
 # --- from val2014(val_dir) ---
 			# --- Load Imgs ---
 			imgs = []
-			for idx in tqdm.tqdm(load_ids_test):
+			debug_save_img = False	# default
+#			debug_save_img = True
+			for cnt, idx in enumerate(tqdm.tqdm(load_ids_test[0:10])):
 				img_file = os.path.join(val_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
-#				print(img_file)
 				img = cv2.imread(img_file)
+
+				if (debug_save_img):
+					save_dir = 'debug_save_img'
+					os.makedirs(save_dir, exist_ok=True)
+					save_file = os.path.join(save_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
+#					print(save_file)
+
+					# --- draw bounding box ---
+					for _i in range(len(labels['bbox'][cnt])):
+						# bbox: (x, y, w, h)
+						point_left_top = [int(_i) for _i in labels['bbox'][cnt][_i][0:2]]
+						point_right_bottom = [int(_i) for _i in labels['bbox'][cnt][_i][2:4]]
+						point_right_bottom = np.add(point_left_top, point_right_bottom)
+#						print(tuple(point_left_top), tuple(point_right_bottom))
+						color = (255, 0, 0)
+						img = cv2.rectangle(img, tuple(point_left_top), tuple(point_right_bottom), color, 3)
+
+					cv2.imwrite(save_file, img)
+
 				img = cv2.resize(img, img_resize)
 				imgs.append(img)
 			imgs = np.array(imgs)
@@ -165,6 +214,7 @@ class DataLoader():
 #			plt.axis('off')
 #			plt.imshow(img)
 #			plt.savefig('img_{}.jpg'.format(load_ids_test[0]))
+
 
 		else:
 			print('[ERROR] unknown dataset_type ... {}'.format(self.dataset_type))
