@@ -32,14 +32,12 @@ class DataLoader():
 
 		def __set_data(train_data=None, train_label=None, validation_data=None, validation_label=None, test_data=None, test_label=None):
 
-			self.train_data = train_data.astype('float32')
 			self.train_label = train_label
-			self.validation_data = validation_data.astype('float32')
 			self.validation_label = validation_label
-			self.test_data = test_data.astype('float32')
 			self.test_label = test_label
 			
-			if (self.train_data is not None):
+			if (train_data is not None):
+				self.train_data = train_data.astype('float32')
 				self.n_train_data = len(self.train_data)
 				self.idx_train_data = list(range(self.n_train_data))
 				self.mean_train_data = np.mean(self.train_data, axis=(0, 1, 2, 3))
@@ -54,14 +52,16 @@ class DataLoader():
 				self.mean_train_data = 0
 				self.std_train_data = 255
 
-			if (self.validation_data is not None):
+			if (validation_data is not None):
+				self.validation_data = validation_data.astype('float32')
 				self.n_validation_data = len(self.validation_data)
 				self.idx_validation_data = list(range(self.n_validation_data))
 			else:
 				self.n_train_data = 0
 				self.idx_train_data = []
 
-			if (self.test_data is not None):
+			if (test_data is not None):
+				self.test_data = test_data.astype('float32')
 				self.n_test_data = len(self.test_data)
 				self.idx_test_data = list(range(self.n_test_data))
 			else:
@@ -204,6 +204,9 @@ class DataLoader():
 				imgs.append(img)
 			imgs = np.array(imgs)
 			print(imgs.shape)
+
+			__set_data(
+				test_data = imgs, test_label = labels)
 
 # --- from url ---
 #			# --- Load Imgs ---

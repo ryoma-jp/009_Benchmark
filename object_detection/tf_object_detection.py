@@ -56,6 +56,36 @@ def main():
 	# --- Load COCO dataset ---
 	dataset = DataLoader(dataset_type=args.dataset_type, dataset_dir=args.dataset_dir, load_ids_test=mscoco_minival_ids)
 
+	# --- Load Model ---
+	detection_graph = tf.Graph()
+	with detection_graph.as_default():
+		od_graph_def = tf.GraphDef()
+		with tf.gfile.GFile(args.model, 'rb') as fid:
+			serialized_graph = fid.read()
+			od_graph_def.ParseFromString(serialized_graph)
+			tf.import_graph_def(od_graph_def, name='')
+
+		sess = tf.Session(graph=detection_graph)
+
+	# --- input and output tensors ---
+	image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+	detection_boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+	detection_scores = detection_graph.get_tensor_by_name('detection_scores:0')
+	detection_classes = detection_graph.get_tensor_by_name('detection_classes:0')
+	num_detections = detection_graph.get_tensor_by_name('num_detections:0')
+
+	# --- inference ---
+	frame = np.expand_dims(dataset.test_data[0], axis=0)
+	print(frame.shape)
+	(boxes, scores, classes, num) = sess.run(
+		[detection_boxes, detection_scores, detection_classes, num_detections],
+		feed_dict={image_tensor: frame})
+
+	print(boxes)
+	print(scores)
+	print(classes)
+	print(num)
+
 	return
 
 #---------------------------------
