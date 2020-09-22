@@ -12,6 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'cocoapi/PythonAPI'))
 # モジュールのインポート
 #---------------------------------
 import cv2
+import json
 import numpy as np
 import pandas as pd
 import argparse
@@ -45,6 +46,30 @@ def ArgParser():
 	args = parser.parse_args()
 
 	return args
+
+def get_coco_fmt_bbox(n_boxes, boxes, classes, scores, img_width, img_height, min_score_th=0.5):
+	'''
+	    COCOフォーマットでBoundary Box を保存する
+	    Ref: https://lijiancheng0614.github.io/2017/08/22/2017_08_22_TensorFlow-Object-Detection-API/
+	'''
+
+	bboxes = []
+	for i in range(n_boxes):
+		if (scores[i] > min_score_th):
+			y1, x1, y2, x2 = boxes[i]
+			bbox = {
+				'bbox': {
+					'xmin': int(x1 * img_width),
+					'ymin': int(y1 * img_height),
+					'xmax': int(x2 * img_width),
+					'ymax': int(y2 * img_height)
+				},
+				'category_id': int(classes[i]),
+				'score': float(scores[i])
+			}
+			bboxes.append(bbox)
+
+	return bboxes
 
 def main():
 	# --- 引数処理 ---
@@ -84,7 +109,8 @@ def main():
 	num_detections = detection_graph.get_tensor_by_name('num_detections:0')
 
 	# --- inference ---
-	for cnt, img_file_name in enumerate(dataset.test_data['image_file']):
+	test_annos = {}
+	for cnt, (minival_id, img_file_name) in enumerate(zip(mscoco_minival_ids[0:10], dataset.test_data['image_file'])):
 		img_file = os.path.join(args.dataset_dir, 'val2014', img_file_name)
 		print('<< img_file: {} >>'.format(img_file))
 		img = cv2.imread(img_file)
@@ -99,17 +125,20 @@ def main():
 #		print('<< classes >>\n{}\n'.format(classes))
 #		print('<< num >>\n{}\n'.format(num))
 
-		color = (255, 0, 0)
-		for i in range(int(num[0])):
-			predict_point_left_top = boxes[0][i][0:2] * img.shape[0:2]	# [y1, x1]
-			predict_point_right_bottom = boxes[0][i][2:4] * img.shape[0:2]	# [y2, x1]
-			predict_score = scores[0][i]
-			predict_class = classes[0][i]
+		bboxes = get_coco_fmt_bbox(int(num[0]), boxes[0], classes[0], scores[0], img.shape[1], img.shape[0])
+		test_annos[int(minival_id)] = {'objects': bboxes}
+#		print(bboxes)
 
+		color = (255, 0, 0)
+		for bbox in bboxes:
 			img = cv2.rectangle(img,
-				tuple(predict_point_left_top[::-1].astype(int)),
-				tuple(predict_point_right_bottom[::-1].astype(int)), color, 3)	# [x, y]の順で指定
+				(bbox['bbox']['xmin'], bbox['bbox']['ymin']),
+				(bbox['bbox']['xmax'], bbox['bbox']['ymax']), color, 3)
 		cv2.imwrite(os.path.join(args.output_dir, PREDICTED_IMG_DIR, 'predict_{:06d}.png'.format(cnt)), img)
+
+	with open(os.path.join(args.output_dir, 'result.json'), 'w') as fd:
+		json.dump(test_annos, fd)
+#	print(test_annos)
 
 	return
 

@@ -184,6 +184,7 @@ class DataLoader():
 			# --- Load Categories ---
 			coco_CatIds = cocoGt.getCatIds()
 #			cats = cocoGt.loadCats(cocoGt.getCatIds())
+#			print(cats)
 #			imgIds = cocoGt.getImgIds()
 #			print(imgIds)
 #			imgIds = cocoGt.getImgIds()
