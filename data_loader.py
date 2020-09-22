@@ -17,11 +17,17 @@ from collections import OrderedDict
 # クラス
 #---------------------------------
 class DataLoader():
-	# --- constant ---
-	TYPE_CIFAR10 = 'cifar10'
-	TYPE_COCO2014 = 'coco2014'
+	# --- dataset type ---
+	DATASET_TYPE_MNIST = 'mnist'
+	DATASET_TYPE_CIFAR10 = 'cifar10'
+	DATASET_TYPE_COCO2014 = 'coco2014'
 
-	def __init__(self, dataset_type=TYPE_CIFAR10, dataset_dir=None, validation_ratio=0.1,
+	# --- data type ---
+	DATA_TYPE_IMAGE = 'image'
+	DATA_TYPE_DICT = 'dict'
+	DATA_TYPE_USROBJ = 'user_object'	# if dataset type is None
+
+	def __init__(self, dataset_type=DATASET_TYPE_CIFAR10, dataset_dir=None, validation_ratio=0.1,
 					load_ids_train=None, load_ids_test=None,
 					img_resize=(300, 300)):
 		'''
@@ -36,52 +42,85 @@ class DataLoader():
 			self.validation_label = validation_label
 			self.test_label = test_label
 			
-			if (train_data is not None):
-				self.train_data = train_data.astype('float32')
-				self.n_train_data = len(self.train_data)
-				self.idx_train_data = list(range(self.n_train_data))
-				self.mean_train_data = np.mean(self.train_data, axis=(0, 1, 2, 3))
-				self.std_train_data = np.std(self.train_data, axis=(0, 1, 2, 3))
-				print(self.mean_train_data, self.std_train_data)
-				print(np.min((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
-				print(np.max((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
-#				quit()
-			else:
-				self.n_train_data = 0
-				self.idx_train_data = []
-				self.mean_train_data = 0
-				self.std_train_data = 255
+			if (self.data_type == self.DATA_TYPE_IMAGE):
+				if (train_data is not None):
+					self.train_data = train_data.astype('float32')
+					self.n_train_data = len(self.train_data)
+					self.idx_train_data = list(range(self.n_train_data))
+					self.mean_train_data = np.mean(self.train_data, axis=(0, 1, 2, 3))
+					self.std_train_data = np.std(self.train_data, axis=(0, 1, 2, 3))
+					print(self.mean_train_data, self.std_train_data)
+					print(np.min((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
+					print(np.max((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
+#					quit()
+				else:
+					self.train_data = None
+					self.n_train_data = 0
+					self.idx_train_data = []
+					self.mean_train_data = 0
+					self.std_train_data = 255
 
-			if (validation_data is not None):
-				self.validation_data = validation_data.astype('float32')
-				self.n_validation_data = len(self.validation_data)
-				self.idx_validation_data = list(range(self.n_validation_data))
-			else:
-				self.n_train_data = 0
-				self.idx_train_data = []
+				if (validation_data is not None):
+					self.validation_data = validation_data.astype('float32')
+					self.n_validation_data = len(self.validation_data)
+					self.idx_validation_data = list(range(self.n_validation_data))
+				else:
+					self.validation_data = None
+					self.n_validation_data = 0
+					self.idx_validation_data = []
 
-			if (test_data is not None):
-				self.test_data = test_data.astype('float32')
-				self.n_test_data = len(self.test_data)
-				self.idx_test_data = list(range(self.n_test_data))
+				if (test_data is not None):
+					self.test_data = test_data.astype('float32')
+					self.n_test_data = len(self.test_data)
+					self.idx_test_data = list(range(self.n_test_data))
+				else:
+					self.test_data = None
+					self.n_test_data = 0
+					self.idx_test_data = []
 			else:
-				self.n_test_data = 0
-				self.idx_test_data = []
+				if (train_data is not None):
+					self.train_data = train_data
+					self.n_train_data = len(self.train_data)
+					self.idx_train_data = list(range(self.n_train_data))
+				else:
+					self.train_data = None
+					self.n_train_data = 0
+					self.idx_train_data = []
+
+				if (validation_data is not None):
+					self.validation_data = validation_data
+					self.n_validation_data = len(self.validation_data)
+					self.idx_validation_data = list(range(self.n_validation_data))
+				else:
+					self.validation_data = None
+					self.n_validation_data = 0
+					self.idx_validation_data = []
+
+				if (test_data is not None):
+					self.test_data = test_data
+					self.n_test_data = len(self.test_data)
+					self.idx_test_data = list(range(self.n_test_data))
+				else:
+					self.test_data = None
+					self.n_test_data = 0
+					self.idx_test_data = []
 			
 			return
 			
 		self.dataset_type = dataset_type
 		if (self.dataset_type is None):
+			self.data_type = self.DATA_TYPE_USROBJ
 			__set_data(train_data, train_label, test_data, test_label)
 			img_shape = train_data.shape[1:]
 		
-		elif (self.dataset_type == 'mnist'):
+		elif (self.dataset_type == self.DATASET_TYPE_MNIST):
 			print('load mnist data')
+			self.data_type = DATA_TYPE_IMAGE
 			dataset = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
 			__set_data(dataset.train.images, dataset.train.labels, dataset.test.images, dataset.test.labels)
 			img_shape = [28, 28, 1]		# H, W, C
 
-		elif (self.dataset_type == self.TYPE_CIFAR10):
+		elif (self.dataset_type == self.DATASET_TYPE_CIFAR10):
 			def unpickle(file):
 				import pickle
 				with open(file, 'rb') as fo:
@@ -91,6 +130,7 @@ class DataLoader():
 			identity = np.eye(10, dtype=np.int)
 
 			# --- load train data ---
+			self.data_type = self.DATA_TYPE_IMAGE
 			train_files = ['data_batch_1', 'data_batch_2', 'data_batch_3', 'data_batch_4', 'data_batch_5']
 			dataset = unpickle(os.path.join(dataset_dir, train_files[0]))
 			train_images_all = dataset[b'data']
@@ -129,9 +169,10 @@ class DataLoader():
 			print('   validation data: {}'.format(validation_images.shape))
 			print('   test data: {}'.format(test_images.shape))
 			
-		elif (self.dataset_type == self.TYPE_COCO2014):
+		elif (self.dataset_type == self.DATASET_TYPE_COCO2014):
 			from pycocotools.coco import COCO
 
+			self.data_type = self.DATA_TYPE_DICT
 			annotation_dir = os.path.join(dataset_dir, 'annotations')
 			val_dir = os.path.join(dataset_dir, 'val2014')
 			img_file_prefix = 'COCO_val2014_'
@@ -175,38 +216,47 @@ class DataLoader():
 
 # --- from val2014(val_dir) ---
 			# --- Load Imgs ---
-			imgs = []
-			debug_save_img = False	# default
-#			debug_save_img = True
-			for cnt, idx in enumerate(tqdm.tqdm(load_ids_test[0:10])):
-				img_file = os.path.join(val_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
-				img = cv2.imread(img_file)
+			if (self.data_type == self.DATA_TYPE_DICT):
+				data = {'image_file': []}
+				for idx in tqdm.tqdm(load_ids_test[0:10]):
+					data['image_file'].append('{}{:012}.jpg'.format(img_file_prefix, idx))
 
-				if (debug_save_img):
-					save_dir = 'debug_save_img'
-					os.makedirs(save_dir, exist_ok=True)
-					save_file = os.path.join(save_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
-#					print(save_file)
+				__set_data(
+					test_data = data, test_label = labels)
+			else:
+				# [T.B.D]
+				imgs = []
+				debug_save_img = False	# default
+#				debug_save_img = True
+				for cnt, idx in enumerate(tqdm.tqdm(load_ids_test[0:10])):
+					img_file = os.path.join(val_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
+					img = cv2.imread(img_file)
 
-					# --- draw bounding box ---
-					for _i in range(len(labels['bbox'][cnt])):
-						# bbox: (x, y, w, h)
-						point_left_top = [int(_i) for _i in labels['bbox'][cnt][_i][0:2]]
-						point_right_bottom = [int(_i) for _i in labels['bbox'][cnt][_i][2:4]]
-						point_right_bottom = np.add(point_left_top, point_right_bottom)
-#						print(tuple(point_left_top), tuple(point_right_bottom))
-						color = (255, 0, 0)
-						img = cv2.rectangle(img, tuple(point_left_top), tuple(point_right_bottom), color, 3)
+					if (debug_save_img):
+						save_dir = 'debug_save_img'
+						os.makedirs(save_dir, exist_ok=True)
+						save_file = os.path.join(save_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
+#						print(save_file)
 
-					cv2.imwrite(save_file, img)
+						# --- draw bounding box ---
+						for _i in range(len(labels['bbox'][cnt])):
+							# bbox: (x, y, w, h)
+							point_left_top = [int(_i) for _i in labels['bbox'][cnt][_i][0:2]]
+							point_right_bottom = [int(_i) for _i in labels['bbox'][cnt][_i][2:4]]
+							point_right_bottom = np.add(point_left_top, point_right_bottom)
+#							print(tuple(point_left_top), tuple(point_right_bottom))
+							color = (255, 0, 0)
+							img = cv2.rectangle(img, tuple(point_left_top), tuple(point_right_bottom), color, 3)
 
-				img = cv2.resize(img, img_resize)
-				imgs.append(img)
-			imgs = np.array(imgs)
-			print(imgs.shape)
+						cv2.imwrite(save_file, img)
 
-			__set_data(
-				test_data = imgs, test_label = labels)
+					img = cv2.resize(img, img_resize)
+					imgs.append(img)
+				imgs = np.array(imgs)
+				print(imgs.shape)
+
+				__set_data(
+					test_data = imgs, test_label = labels)
 
 # --- from url ---
 #			# --- Load Imgs ---
@@ -242,7 +292,7 @@ class DataLoader():
 		
 	def next_batch(self, n_minibatch, da_params):
 		# --- da_params ---
-		# * TYPE_CIFAR10
+		# * DATASET_TYPE_CIFAR10
 		#     'random flip'
 		#       0: none
 		#       1: up down
@@ -320,7 +370,7 @@ class DataLoader():
 		train_data = self.train_data[index].copy()
 		train_label = self.train_label[index]
 
-		if (self.dataset_type == self.TYPE_CIFAR10):
+		if (self.dataset_type == self.DATASET_TYPE_CIFAR10):
 			flip_idx = da_params['random_flip']
 			brightness_coef = da_params['brightness']
 			scaling_coef = da_params['scaling']
