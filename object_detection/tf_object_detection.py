@@ -165,7 +165,7 @@ def main():
 			category = dataset.cocoGt.loadCats(bbox['category_id'])[0]
 			img = cv2.rectangle(img,
 				(int(bbox['bbox'][0]), int(bbox['bbox'][1])),
-				(int(bbox['bbox'][2]), int(bbox['bbox'][3])), color, 3)
+				(int(bbox['bbox'][0]+bbox['bbox'][2]), int(bbox['bbox'][1]+bbox['bbox'][3])), color, 3)
 			img = cv2.putText(img, category['name'], 
 				(int(bbox['bbox'][0]), max(int(bbox['bbox'][1]), 25)),
 				cv2.FONT_HERSHEY_PLAIN, 2, color, 2, cv2.LINE_AA)
