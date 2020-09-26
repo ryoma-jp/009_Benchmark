@@ -160,9 +160,14 @@ def main():
 
 		color = (255, 0, 0)
 		for bbox in bboxes:
+#			print(bbox['category_id'], dataset.cocoGt.loadCats(bbox['category_id']))
+			category = dataset.cocoGt.loadCats(bbox['category_id'])[0]
 			img = cv2.rectangle(img,
 				(int(bbox['bbox'][0]), int(bbox['bbox'][1])),
 				(int(bbox['bbox'][2]), int(bbox['bbox'][3])), color, 3)
+			img = cv2.putText(img, category['name'], 
+				(int(bbox['bbox'][0]), max(int(bbox['bbox'][1]), 25)),
+				cv2.FONT_HERSHEY_PLAIN, 2, color, 2, cv2.LINE_AA)
 		cv2.imwrite(os.path.join(args.output_dir, PREDICTED_IMG_DIR, 'predict_{:06d}.png'.format(cnt)), img)
 
 	with open(os.path.join(args.output_dir, 'result.json'), 'w') as fd:
