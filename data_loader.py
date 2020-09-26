@@ -199,14 +199,15 @@ class DataLoader():
 
 #			print(coco_Anns[0:10])
 #			print(coco_Anns[0].keys())
+			print('[DEBUG] len(coco_Anns): {}'.format(len(coco_Anns)))
 
 			labels = OrderedDict({'image_id': [], 'bbox': [], 'category_id': []})
 			cnt = 0
-			for idx in load_ids_test[0:10]:
+			for idx in load_ids_test:
 				labels['image_id'].append(coco_Anns[cnt]['image_id'])
 
 				bbox = []
-				while (idx == coco_Anns[cnt]['image_id']):
+				while ((cnt < len(coco_Anns)) and (idx == coco_Anns[cnt]['image_id'])):
 					bbox.append(coco_Anns[cnt]['bbox'])
 					labels['category_id'].append(coco_Anns[cnt]['category_id'])
 					cnt += 1
@@ -219,7 +220,7 @@ class DataLoader():
 			# --- Load Imgs ---
 			if (self.data_type == self.DATA_TYPE_DICT):
 				data = {'image_file': []}
-				for idx in tqdm.tqdm(load_ids_test[0:10]):
+				for idx in tqdm.tqdm(load_ids_test):
 					data['image_file'].append('{}{:012}.jpg'.format(img_file_prefix, idx))
 
 				__set_data(
@@ -229,7 +230,7 @@ class DataLoader():
 				imgs = []
 				debug_save_img = False	# default
 #				debug_save_img = True
-				for cnt, idx in enumerate(tqdm.tqdm(load_ids_test[0:10])):
+				for cnt, idx in enumerate(tqdm.tqdm(load_ids_test)):
 					img_file = os.path.join(val_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
 					img = cv2.imread(img_file)
 

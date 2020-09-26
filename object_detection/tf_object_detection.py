@@ -74,6 +74,25 @@ def get_coco_fmt_bbox(n_boxes, boxes, classes, scores, img_width, img_height, mi
 
 	return bboxes
 
+def get_coco_fmt_bbox2(image_id, n_boxes, boxes, classes, scores, img_width, img_height, min_score_th=0.0):
+	'''
+	    cocoapi/result/instances_val2014_fakebbox100_results.json
+	'''
+
+	bboxes = []
+	for i in range(n_boxes):
+		if (scores[i] > min_score_th):
+			y1, x1, y2, x2 = boxes[i]
+			bbox = {
+				'image_id': image_id,
+				'bbox': [float(x1 * img_width), float(y1 * img_height), float(x2 * img_width), float(y2 * img_height)],
+				'category_id': int(classes[i]),
+				'score': float(scores[i])
+			}
+			bboxes.append(bbox)
+
+	return bboxes
+
 def main():
 	# --- 引数処理 ---
 	args = ArgParser()
@@ -112,8 +131,10 @@ def main():
 	num_detections = detection_graph.get_tensor_by_name('num_detections:0')
 
 	# --- inference ---
-	test_annos = {}
-	for cnt, (minival_id, img_file_name) in enumerate(zip(mscoco_minival_ids[0:10], dataset.test_data['image_file'])):
+	test_annos = []
+	debug_mscoco_minival_ids = mscoco_minival_ids[0:10]
+#	for cnt, (minival_id, img_file_name) in enumerate(zip(mscoco_minival_ids, dataset.test_data['image_file'])):
+	for cnt, (minival_id, img_file_name) in enumerate(zip(debug_mscoco_minival_ids, dataset.test_data['image_file'])):
 		img_file = os.path.join(args.dataset_dir, 'val2014', img_file_name)
 		print('<< img_file: {} >>'.format(img_file))
 		img = cv2.imread(img_file)
@@ -128,29 +149,37 @@ def main():
 #		print('<< classes >>\n{}\n'.format(classes))
 #		print('<< num >>\n{}\n'.format(num))
 
-		bboxes = get_coco_fmt_bbox(int(num[0]), boxes[0], classes[0], scores[0], img.shape[1], img.shape[0])
-		test_annos[int(minival_id)] = {'objects': bboxes}
+		if (0):
+			bboxes = get_coco_fmt_bbox(int(num[0]), boxes[0], classes[0], scores[0], img.shape[1], img.shape[0])
+			test_annos[int(minival_id)] = {'objects': bboxes}
+		else:
+			bboxes = get_coco_fmt_bbox2(int(minival_id), int(num[0]), boxes[0], classes[0], scores[0], img.shape[1], img.shape[0])
+			for bbox in bboxes:
+				test_annos.append(bbox)
 #		print(bboxes)
 
 		color = (255, 0, 0)
 		for bbox in bboxes:
 			img = cv2.rectangle(img,
-				(bbox['bbox']['xmin'], bbox['bbox']['ymin']),
-				(bbox['bbox']['xmax'], bbox['bbox']['ymax']), color, 3)
+				(int(bbox['bbox'][0]), int(bbox['bbox'][1])),
+				(int(bbox['bbox'][2]), int(bbox['bbox'][3])), color, 3)
 		cv2.imwrite(os.path.join(args.output_dir, PREDICTED_IMG_DIR, 'predict_{:06d}.png'.format(cnt)), img)
 
 	with open(os.path.join(args.output_dir, 'result.json'), 'w') as fd:
 		json.dump(test_annos, fd)
-	print(test_annos)
+#	print(test_annos)
 
 	from pycocotools.cocoeval import COCOeval
-	result_json = os.path.join('cocoapi', 'results', 'instances_val2014_fakebbox100_results.json')
-#	result_json = os.path.join(args.output_dir, 'result.json')
+#	result_json = os.path.join('cocoapi', 'results', 'instances_val2014_fakebbox100_results.json')
+	result_json = os.path.join(args.output_dir, 'result.json')
 	cocoDt = dataset.cocoGt.loadRes(result_json)
 	print(cocoDt)
 
 	cocoEval = COCOeval(dataset.cocoGt, cocoDt, 'bbox')
-	cocoEval.params.imgIds = sorted(dataset.cocoGt.getImgIds())[0:100]
+#	cocoEval.params.imgIds = sorted(dataset.cocoGt.getImgIds())[0:100]
+#	cocoEval.params.imgIds = sorted(mscoco_minival_ids[0:10])
+#	cocoEval.params.imgIds = sorted(mscoco_minival_ids)
+	cocoEval.params.imgIds = sorted(debug_mscoco_minival_ids)
 	cocoEval.evaluate()
 	cocoEval.accumulate()
 	cocoEval.summarize()
