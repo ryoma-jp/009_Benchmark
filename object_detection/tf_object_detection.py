@@ -16,6 +16,7 @@ import json
 import numpy as np
 import pandas as pd
 import argparse
+import tqdm
 
 import tensorflow as tf
 from data_loader import DataLoader
@@ -85,7 +86,7 @@ def get_coco_fmt_bbox2(image_id, n_boxes, boxes, classes, scores, img_width, img
 			y1, x1, y2, x2 = boxes[i]
 			bbox = {
 				'image_id': image_id,
-				'bbox': [float(x1 * img_width), float(y1 * img_height), float(x2 * img_width), float(y2 * img_height)],
+				'bbox': [float(x1 * img_width), float(y1 * img_height), float((x2-x1) * img_width), float((y2-y1) * img_height)],
 				'category_id': int(classes[i]),
 				'score': float(scores[i])
 			}
@@ -133,12 +134,12 @@ def main():
 	# --- inference ---
 	test_annos = []
 	debug_mscoco_minival_ids = mscoco_minival_ids[0:10]
-#	for cnt, (minival_id, img_file_name) in enumerate(zip(mscoco_minival_ids, dataset.test_data['image_file'])):
-	for cnt, (minival_id, img_file_name) in enumerate(zip(debug_mscoco_minival_ids, dataset.test_data['image_file'])):
+	for cnt, (minival_id, img_file_name) in enumerate(tqdm.tqdm(zip(mscoco_minival_ids, dataset.test_data['image_file']))):
+#	for cnt, (minival_id, img_file_name) in enumerate(zip(debug_mscoco_minival_ids, dataset.test_data['image_file'])):
 		img_file = os.path.join(args.dataset_dir, 'val2014', img_file_name)
-		print('<< img_file: {} >>'.format(img_file))
+#		print('<< img_file: {} >>'.format(img_file))
 		img = cv2.imread(img_file)
-		print(' * img shape: {}'.format(img.shape))
+#		print(' * img shape: {}'.format(img.shape))
 		frame = np.expand_dims(img, axis=0)
 		(boxes, scores, classes, num) = sess.run(
 			[detection_boxes, detection_scores, detection_classes, num_detections],
@@ -168,7 +169,8 @@ def main():
 			img = cv2.putText(img, category['name'], 
 				(int(bbox['bbox'][0]), max(int(bbox['bbox'][1]), 25)),
 				cv2.FONT_HERSHEY_PLAIN, 2, color, 2, cv2.LINE_AA)
-		cv2.imwrite(os.path.join(args.output_dir, PREDICTED_IMG_DIR, 'predict_{:06d}.png'.format(cnt)), img)
+#		cv2.imwrite(os.path.join(args.output_dir, PREDICTED_IMG_DIR, 'predict_{:06d}.png'.format(cnt)), img)
+		cv2.imwrite(os.path.join(args.output_dir, PREDICTED_IMG_DIR, 'predict_{:012d}.png'.format(bbox['image_id'])), img)
 
 	with open(os.path.join(args.output_dir, 'result.json'), 'w') as fd:
 		json.dump(test_annos, fd)
