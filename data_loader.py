@@ -179,23 +179,23 @@ class DataLoader():
 
 			# --- Initialize COCO ground truth api ---
 			annFile = os.path.join(annotation_dir, 'instances_val2014.json')
-			cocoGt = COCO(annFile)
+			self.cocoGt = COCO(annFile)
 
 			# --- Load Categories ---
-			coco_CatIds = cocoGt.getCatIds()
-#			cats = cocoGt.loadCats(cocoGt.getCatIds())
+			coco_CatIds = self.cocoGt.getCatIds()
+#			cats = self.cocoGt.loadCats(self.cocoGt.getCatIds())
 #			print(cats)
-#			imgIds = cocoGt.getImgIds()
+#			imgIds = self.cocoGt.getImgIds()
 #			print(imgIds)
-#			imgIds = cocoGt.getImgIds()
+#			imgIds = self.cocoGt.getImgIds()
 #			print(imgIds)
 #			nms = [cat['name'] for cat in cats[0:10]]
 #			print('COCO categories: \n{}\n'.format(' '.join(nms)))
 
 			# --- Load Annotations ---
-			coco_Imgs = cocoGt.loadImgs(load_ids_test)
-			coco_AnnIds = cocoGt.getAnnIds(imgIds=load_ids_test, catIds=coco_CatIds, iscrowd=None)
-			coco_Anns = cocoGt.loadAnns(coco_AnnIds)
+			coco_Imgs = self.cocoGt.loadImgs(load_ids_test)
+			coco_AnnIds = self.cocoGt.getAnnIds(imgIds=load_ids_test, catIds=coco_CatIds, iscrowd=None)
+			coco_Anns = self.cocoGt.loadAnns(coco_AnnIds)
 
 #			print(coco_Anns[0:10])
 #			print(coco_Anns[0].keys())
@@ -261,7 +261,7 @@ class DataLoader():
 
 # --- from url ---
 #			# --- Load Imgs ---
-#			imgs = cocoGt.loadImgs(load_ids_test)
+#			imgs = self.cocoGt.loadImgs(load_ids_test)
 #
 #			# --- Show Img ---
 #			img = io.imread(imgs[0]['coco_url'])

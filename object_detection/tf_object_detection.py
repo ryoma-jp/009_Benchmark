@@ -20,6 +20,9 @@ import argparse
 import tensorflow as tf
 from data_loader import DataLoader
 
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
+
 #---------------------------------
 # 定数定義
 #---------------------------------
@@ -138,7 +141,19 @@ def main():
 
 	with open(os.path.join(args.output_dir, 'result.json'), 'w') as fd:
 		json.dump(test_annos, fd)
-#	print(test_annos)
+	print(test_annos)
+
+	from pycocotools.cocoeval import COCOeval
+	result_json = os.path.join('cocoapi', 'results', 'instances_val2014_fakebbox100_results.json')
+#	result_json = os.path.join(args.output_dir, 'result.json')
+	cocoDt = dataset.cocoGt.loadRes(result_json)
+	print(cocoDt)
+
+	cocoEval = COCOeval(dataset.cocoGt, cocoDt, 'bbox')
+	cocoEval.params.imgIds = sorted(dataset.cocoGt.getImgIds())[0:100]
+	cocoEval.evaluate()
+	cocoEval.accumulate()
+	cocoEval.summarize()
 
 	return
 
