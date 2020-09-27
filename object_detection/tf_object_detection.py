@@ -75,7 +75,7 @@ def get_coco_fmt_bbox(n_boxes, boxes, classes, scores, img_width, img_height, mi
 
 	return bboxes
 
-def get_coco_fmt_bbox2(image_id, n_boxes, boxes, classes, scores, img_width, img_height, min_score_th=0.0):
+def get_coco_fmt_bbox2(image_id, n_boxes, boxes, classes, scores, img_width, img_height, min_score_th=0.5):
 	'''
 	    cocoapi/result/instances_val2014_fakebbox100_results.json
 	'''
