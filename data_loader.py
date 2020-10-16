@@ -31,12 +31,26 @@ class DataLoader():
 
 		def __set_data(train_data=None, train_label=None, validation_data=None, validation_label=None, test_data=None, test_label=None):
 
-			self.train_data = train_data.astype('float32')
-			self.train_label = train_label
-			self.validation_data = validation_data.astype('float32')
-			self.validation_label = validation_label
-			self.test_data = test_data.astype('float32')
-			self.test_label = test_label
+			if (train_data is not None):
+				self.train_data = train_data.astype('float32')
+				self.train_label = train_label
+			else:
+				self.train_data = None
+				self.train_label = None
+
+			if (validation_data is not None):
+				self.validation_data = validation_data.astype('float32')
+				self.validation_label = validation_label
+			else:
+				self.validation_data = None
+				self.validation_label = None
+
+			if (test_data is not None):
+				self.test_data = test_data.astype('float32')
+				self.test_label = test_label
+			else:
+				self.test_data = None
+				self.test_label = None
 			
 			if (self.train_data is not None):
 				self.n_train_data = len(self.train_data)
@@ -155,6 +169,8 @@ class DataLoader():
 				imgs.append(img)
 			imgs = np.array(imgs)
 			print(imgs.shape)
+
+			__set_data(test_data=imgs)
 
 # --- from url ---
 #			# --- Load Imgs ---

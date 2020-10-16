@@ -52,9 +52,23 @@ def main():
 	# --- Load MSCOCO minival ids ---
 	mscoco_minival_ids = np.loadtxt(MSCOCO_MINIVAL_IDS, delimiter="\n", dtype=int)
 	print(mscoco_minival_ids)
+	print(len(mscoco_minival_ids))
 
 	# --- Load COCO dataset ---
-	dataset = DataLoader(dataset_type=args.dataset_type, dataset_dir=args.dataset_dir, load_ids_test=mscoco_minival_ids)
+#	dataset = DataLoader(dataset_type=args.dataset_type, dataset_dir=args.dataset_dir, load_ids_test=mscoco_minival_ids)
+
+	pos = 0
+	sep_cnt = 10
+	sep_len = len(mscoco_minival_ids) // sep_cnt
+	dataset_sep = DataLoader(dataset_type=args.dataset_type, dataset_dir=args.dataset_dir, load_ids_test=mscoco_minival_ids[pos:pos+sep_len])
+	test_data = dataset_sep.test_data.copy()
+	pos += sep_len
+	for _i in range(1, sep_cnt): 
+		dataset_sep = DataLoader(dataset_type=args.dataset_type, dataset_dir=args.dataset_dir, load_ids_test=mscoco_minival_ids[pos:pos+sep_len])
+		test_data = np.vstack((test_data, dataset_sep.test_data.copy()))
+		print(_i, dataset_sep.test_data.shape, test_data.shape)
+		pos += sep_len
+	print(test_data.shape)
 
 	return
 
