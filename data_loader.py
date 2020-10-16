@@ -256,8 +256,6 @@ class DataLoader():
 				__set_data(
 					test_data = imgs, test_label = labels)
 
-			__set_data(test_data=imgs)
-
 # --- from url ---
 #			# --- Load Imgs ---
 #			imgs = self.cocoGt.loadImgs(load_ids_test)
