@@ -11,16 +11,23 @@ import numpy as np
 import pandas as pd
 import cv2
 import matplotlib.pyplot as plt
+from collections import OrderedDict
 
 #---------------------------------
 # クラス
 #---------------------------------
 class DataLoader():
-	# --- constant ---
-	TYPE_CIFAR10 = 'cifar10'
-	TYPE_COCO2014 = 'coco2014'
+	# --- dataset type ---
+	DATASET_TYPE_MNIST = 'mnist'
+	DATASET_TYPE_CIFAR10 = 'cifar10'
+	DATASET_TYPE_COCO2014 = 'coco2014'
 
-	def __init__(self, dataset_type=TYPE_CIFAR10, dataset_dir=None, validation_ratio=0.1,
+	# --- data type ---
+	DATA_TYPE_IMAGE = 'image'
+	DATA_TYPE_DICT = 'dict'
+	DATA_TYPE_USROBJ = 'user_object'	# if dataset type is None
+
+	def __init__(self, dataset_type=DATASET_TYPE_CIFAR10, dataset_dir=None, validation_ratio=0.1,
 					load_ids_train=None, load_ids_test=None,
 					img_resize=(300, 300)):
 		'''
@@ -31,70 +38,85 @@ class DataLoader():
 
 		def __set_data(train_data=None, train_label=None, validation_data=None, validation_label=None, test_data=None, test_label=None):
 
-			if (train_data is not None):
-				self.train_data = train_data.astype('float32')
-				self.train_label = train_label
-			else:
-				self.train_data = None
-				self.train_label = None
+			if (self.data_type == self.DATA_TYPE_IMAGE):
+				if (train_data is not None):
+					self.train_data = train_data.astype('float32')
+					self.n_train_data = len(self.train_data)
+					self.idx_train_data = list(range(self.n_train_data))
+					self.mean_train_data = np.mean(self.train_data, axis=(0, 1, 2, 3))
+					self.std_train_data = np.std(self.train_data, axis=(0, 1, 2, 3))
+					print(self.mean_train_data, self.std_train_data)
+					print(np.min((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
+					print(np.max((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
+#					quit()
+				else:
+					self.train_data = None
+					self.n_train_data = 0
+					self.idx_train_data = []
+					self.mean_train_data = 0
+					self.std_train_data = 255
 
-			if (validation_data is not None):
-				self.validation_data = validation_data.astype('float32')
-				self.validation_label = validation_label
-			else:
-				self.validation_data = None
-				self.validation_label = None
+				if (validation_data is not None):
+					self.validation_data = validation_data.astype('float32')
+					self.n_validation_data = len(self.validation_data)
+					self.idx_validation_data = list(range(self.n_validation_data))
+				else:
+					self.validation_data = None
+					self.n_validation_data = 0
+					self.idx_validation_data = []
 
-			if (test_data is not None):
-				self.test_data = test_data.astype('float32')
-				self.test_label = test_label
+				if (test_data is not None):
+					self.test_data = test_data.astype('float32')
+					self.n_test_data = len(self.test_data)
+					self.idx_test_data = list(range(self.n_test_data))
+				else:
+					self.test_data = None
+					self.n_test_data = 0
+					self.idx_test_data = []
 			else:
-				self.test_data = None
-				self.test_label = None
-			
-			if (self.train_data is not None):
-				self.n_train_data = len(self.train_data)
-				self.idx_train_data = list(range(self.n_train_data))
-				self.mean_train_data = np.mean(self.train_data, axis=(0, 1, 2, 3))
-				self.std_train_data = np.std(self.train_data, axis=(0, 1, 2, 3))
-				print(self.mean_train_data, self.std_train_data)
-				print(np.min((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
-				print(np.max((self.train_data - self.mean_train_data) / (self.std_train_data + 1e-7)))
-#				quit()
-			else:
-				self.n_train_data = 0
-				self.idx_train_data = []
-				self.mean_train_data = 0
-				self.std_train_data = 255
+				if (train_data is not None):
+					self.train_data = train_data
+					self.n_train_data = len(self.train_data)
+					self.idx_train_data = list(range(self.n_train_data))
+				else:
+					self.train_data = None
+					self.n_train_data = 0
+					self.idx_train_data = []
 
-			if (self.validation_data is not None):
-				self.n_validation_data = len(self.validation_data)
-				self.idx_validation_data = list(range(self.n_validation_data))
-			else:
-				self.n_train_data = 0
-				self.idx_train_data = []
+				if (validation_data is not None):
+					self.validation_data = validation_data
+					self.n_validation_data = len(self.validation_data)
+					self.idx_validation_data = list(range(self.n_validation_data))
+				else:
+					self.validation_data = None
+					self.n_validation_data = 0
+					self.idx_validation_data = []
 
-			if (self.test_data is not None):
-				self.n_test_data = len(self.test_data)
-				self.idx_test_data = list(range(self.n_test_data))
-			else:
-				self.n_test_data = 0
-				self.idx_test_data = []
+				if (test_data is not None):
+					self.test_data = test_data
+					self.n_test_data = len(self.test_data)
+					self.idx_test_data = list(range(self.n_test_data))
+				else:
+					self.test_data = None
+					self.n_test_data = 0
+					self.idx_test_data = []
 			
 			return
 			
 		self.dataset_type = dataset_type
 		if (self.dataset_type is None):
+			self.data_type = self.DATA_TYPE_USROBJ
 			__set_data(train_data, train_label, test_data, test_label)
 			img_shape = train_data.shape[1:]
 		
-		elif (self.dataset_type == 'mnist'):
+		elif (self.dataset_type == self.DATASET_TYPE_MNIST):
 			print('load mnist data')
+			self.data_type = DATA_TYPE_IMAGE
 			dataset = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
 			__set_data(dataset.train.images, dataset.train.labels, dataset.test.images, dataset.test.labels)
 			img_shape = [28, 28, 1]		# H, W, C
 
-		elif (self.dataset_type == self.TYPE_CIFAR10):
+		elif (self.dataset_type == self.DATASET_TYPE_CIFAR10):
 			def unpickle(file):
 				import pickle
 				with open(file, 'rb') as fo:
@@ -104,6 +126,7 @@ class DataLoader():
 			identity = np.eye(10, dtype=np.int)
 
 			# --- load train data ---
+			self.data_type = self.DATA_TYPE_IMAGE
 			train_files = ['data_batch_1', 'data_batch_2', 'data_batch_3', 'data_batch_4', 'data_batch_5']
 			dataset = unpickle(os.path.join(dataset_dir, train_files[0]))
 			train_images_all = dataset[b'data']
@@ -142,45 +165,109 @@ class DataLoader():
 			print('   validation data: {}'.format(validation_images.shape))
 			print('   test data: {}'.format(test_images.shape))
 			
-		elif (self.dataset_type == self.TYPE_COCO2014):
+		elif (self.dataset_type == self.DATASET_TYPE_COCO2014):
 			from pycocotools.coco import COCO
 
+			self.data_type = self.DATA_TYPE_DICT
 			annotation_dir = os.path.join(dataset_dir, 'annotations')
 			val_dir = os.path.join(dataset_dir, 'val2014')
 			img_file_prefix = 'COCO_val2014_'
 
 			# --- Initialize COCO ground truth api ---
-			annFile = os.path.join(annotation_dir, 'person_keypoints_val2014.json')
-			cocoGt = COCO(annFile)
-#			print(cocoGt.info())
+			annFile = os.path.join(annotation_dir, 'instances_val2014.json')
+			self.cocoGt = COCO(annFile)
 
-#			cocoGt.createIndex()
-#			print(cocoGt.anns)
-#			cocoGt.showAnns(cocoGt.anns[0:10])
+			# --- Load Categories ---
+			coco_CatIds = self.cocoGt.getCatIds()
+#			cats = self.cocoGt.loadCats(self.cocoGt.getCatIds())
+#			print(cats)
+#			imgIds = self.cocoGt.getImgIds()
+#			print(imgIds)
+#			imgIds = self.cocoGt.getImgIds()
+#			print(imgIds)
+#			nms = [cat['name'] for cat in cats[0:10]]
+#			print('COCO categories: \n{}\n'.format(' '.join(nms)))
+
+			# --- Load Annotations ---
+			coco_Imgs = self.cocoGt.loadImgs(load_ids_test)
+			coco_AnnIds = self.cocoGt.getAnnIds(imgIds=load_ids_test, catIds=coco_CatIds, iscrowd=None)
+			coco_Anns = self.cocoGt.loadAnns(coco_AnnIds)
+
+#			print(coco_Anns[0:10])
+#			print(coco_Anns[0].keys())
+			print('[DEBUG] len(coco_Anns): {}'.format(len(coco_Anns)))
+
+			labels = OrderedDict({'image_id': [], 'bbox': [], 'category_id': []})
+			cnt = 0
+			for idx in load_ids_test:
+				labels['image_id'].append(coco_Anns[cnt]['image_id'])
+
+				bbox = []
+				while ((cnt < len(coco_Anns)) and (idx == coco_Anns[cnt]['image_id'])):
+					bbox.append(coco_Anns[cnt]['bbox'])
+					labels['category_id'].append(coco_Anns[cnt]['category_id'])
+					cnt += 1
+				labels['bbox'].append(bbox)
+#			print(labels['image_id'][0:10])
+#			print(labels['bbox'][0:10])
+#			print(labels['category_id'][0:10])
 
 # --- from val2014(val_dir) ---
 			# --- Load Imgs ---
-			imgs = []
-			for idx in tqdm.tqdm(load_ids_test):
-				img_file = os.path.join(val_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
-#				print(img_file)
-				img = cv2.imread(img_file)
-				img = cv2.resize(img, img_resize)
-				imgs.append(img)
-			imgs = np.array(imgs)
-			print(imgs.shape)
+			if (self.data_type == self.DATA_TYPE_DICT):
+				data = {'image_file': []}
+				for idx in tqdm.tqdm(load_ids_test):
+					data['image_file'].append('{}{:012}.jpg'.format(img_file_prefix, idx))
+
+				__set_data(
+					test_data = data, test_label = labels)
+			else:
+				# [T.B.D]
+				imgs = []
+				debug_save_img = False	# default
+#				debug_save_img = True
+				for cnt, idx in enumerate(tqdm.tqdm(load_ids_test)):
+					img_file = os.path.join(val_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
+					img = cv2.imread(img_file)
+
+					if (debug_save_img):
+						save_dir = 'debug_save_img'
+						os.makedirs(save_dir, exist_ok=True)
+						save_file = os.path.join(save_dir, '{}{:012}.jpg'.format(img_file_prefix, idx))
+#						print(save_file)
+
+						# --- draw bounding box ---
+						for _i in range(len(labels['bbox'][cnt])):
+							# bbox: (x, y, w, h)
+							point_left_top = [int(_i) for _i in labels['bbox'][cnt][_i][0:2]]
+							point_right_bottom = [int(_i) for _i in labels['bbox'][cnt][_i][2:4]]
+							point_right_bottom = np.add(point_left_top, point_right_bottom)
+#							print(tuple(point_left_top), tuple(point_right_bottom))
+							color = (255, 0, 0)
+							img = cv2.rectangle(img, tuple(point_left_top), tuple(point_right_bottom), color, 3)
+
+						cv2.imwrite(save_file, img)
+
+					img = cv2.resize(img, img_resize)
+					imgs.append(img)
+				imgs = np.array(imgs)
+				print(imgs.shape)
+
+				__set_data(
+					test_data = imgs, test_label = labels)
 
 			__set_data(test_data=imgs)
 
 # --- from url ---
 #			# --- Load Imgs ---
-#			imgs = cocoGt.loadImgs(load_ids_test)
+#			imgs = self.cocoGt.loadImgs(load_ids_test)
 #
 #			# --- Show Img ---
 #			img = io.imread(imgs[0]['coco_url'])
 #			plt.axis('off')
 #			plt.imshow(img)
 #			plt.savefig('img_{}.jpg'.format(load_ids_test[0]))
+
 
 		else:
 			print('[ERROR] unknown dataset_type ... {}'.format(self.dataset_type))
@@ -205,7 +292,7 @@ class DataLoader():
 		
 	def next_batch(self, n_minibatch, da_params):
 		# --- da_params ---
-		# * TYPE_CIFAR10
+		# * DATASET_TYPE_CIFAR10
 		#     'random flip'
 		#       0: none
 		#       1: up down
@@ -283,7 +370,7 @@ class DataLoader():
 		train_data = self.train_data[index].copy()
 		train_label = self.train_label[index]
 
-		if (self.dataset_type == self.TYPE_CIFAR10):
+		if (self.dataset_type == self.DATASET_TYPE_CIFAR10):
 			flip_idx = da_params['random_flip']
 			brightness_coef = da_params['brightness']
 			scaling_coef = da_params['scaling']
