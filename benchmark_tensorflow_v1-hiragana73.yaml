@@ -1,0 +1,26 @@
+
+# --- 学習条件数 ---
+n_conditions: 1
+
+# --- DataAugmentationパラメータ ---
+da_random_erasing: [[10, 16]]
+da_scaling_rate: [0.2]
+da_random_flip: [[0]]      # 0:none, 1:up down, 2:left right, 3:up down and left right
+da_brightness_coef: [0.0]
+da_rotation: [10]
+da_shift_pix: [4]
+
+# --- 学習パラメータ ---
+dataset: ['hiragana73']
+dataset_dir: ['/work/MachineLearning/dataset/hiragana_mojigazo/hiragana73']
+n_epoch: [200]
+n_minibatch: [64]
+optimizer: ['Adam']
+learning_rate: [0.0001]
+weight_decay: [0.0001]
+conv_channels: [[64, 128, 256]]
+conv_kernel_size: [[3, 3, 3]]
+pool_size: [[2, 2]]
+fc_channels: [[512]]
+dropout_rate: [0.5]
+

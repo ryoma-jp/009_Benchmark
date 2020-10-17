@@ -5,6 +5,7 @@
 #---------------------------------
 import skimage.io as io
 import os
+import glob
 import random
 import tqdm
 import numpy as np
@@ -21,13 +22,17 @@ class DataLoader():
 	DATASET_TYPE_MNIST = 'mnist'
 	DATASET_TYPE_CIFAR10 = 'cifar10'
 	DATASET_TYPE_COCO2014 = 'coco2014'
+	DATASET_TYPE_HIRAGANA73 = 'hiragana73'
 
 	# --- data type ---
 	DATA_TYPE_IMAGE = 'image'
 	DATA_TYPE_DICT = 'dict'
 	DATA_TYPE_USROBJ = 'user_object'	# if dataset type is None
 
-	def __init__(self, dataset_type=DATASET_TYPE_CIFAR10, dataset_dir=None, validation_ratio=0.1,
+	# --- output directory name for dataset information ---
+	DATASET_OUTPUT_DIR = 'dataset_info'
+
+	def __init__(self, dataset_type=DATASET_TYPE_CIFAR10, dataset_dir=None, output_dir=None, validation_ratio=0.1,
 					load_ids_train=None, load_ids_test=None,
 					img_resize=(300, 300)):
 		'''
@@ -103,6 +108,9 @@ class DataLoader():
 			
 			return
 			
+		if (output_dir is not None):
+			os.makedirs(os.path.join(output_dir, self.DATASET_OUTPUT_DIR), exist_ok=True)
+
 		self.dataset_type = dataset_type
 		if (self.dataset_type is None):
 			self.data_type = self.DATA_TYPE_USROBJ
@@ -267,6 +275,50 @@ class DataLoader():
 #			plt.savefig('img_{}.jpg'.format(load_ids_test[0]))
 
 
+		elif (self.dataset_type == self.DATASET_TYPE_HIRAGANA73):
+			label_dict = {}		# name: ディレクトリ名, id: クラスID, num: 各クラスのデータ数
+			label_dict['name'] = [os.path.basename(_dir) for _dir in glob.glob(os.path.join(dataset_dir, '*'))]
+			label_dict['id'] = np.arange(len(label_dict['name']))
+			label_dict['num'] = []
+#			print(label_dict['name'])
+#			print(label_dict['id'])
+
+			dataset_dict = {}	# no: データ番号(連番), file: ファイル名, id: クラスID, data: ピクセルデータ
+			dataset_dict['file'] = []
+			dataset_dict['id'] = []
+			dataset_dict['data'] = []
+			for (sub_dir, class_id) in zip(label_dict['name'], label_dict['id']):
+				img_files = [f for f in glob.glob(os.path.join(dataset_dir, sub_dir, '*'))]
+				label_dict['num'].append(len(img_files))
+#				print('<< {}, {} >>'.format(sub_dir, class_id))
+#				print(img_files)
+
+				for img_file in img_files:
+					dataset_dict['file'].append(img_file)
+					dataset_dict['id'].append(class_id)
+			dataset_dict['id'] = np.array(dataset_dict['id'])
+			dataset_dict['no'] = np.arange(len(dataset_dict['id']))
+
+			if (output_dir is not None):
+				datanum_data = np.vstack((label_dict['id'], label_dict['name'], label_dict['num'])).T
+				datanum_header = ['class id', 'class name', 'data num']
+				pd.DataFrame(datanum_data).to_csv(os.path.join(output_dir, self.DATASET_OUTPUT_DIR, 'datanum.csv'), header=datanum_header, index=False)
+
+				plt.figure(figsize=(18, 6))
+				plt.bar(label_dict['id'], label_dict['num'], align='center')
+				plt.xlabel('class id')
+				plt.ylabel('data num')
+				plt.tight_layout()
+				plt.savefig(os.path.join(output_dir, self.DATASET_OUTPUT_DIR, 'datanum.png'))
+				plt.close()
+
+#			print(dataset_dict['no'][dataset_dict['id']==0])
+#			print(dataset_dict['file'])
+#			print(dataset_dict['id'])
+
+#			for (sub_dir, class_id, class_num) in zip(label_dict['name'], label_dict['id'], label_dict['num']):
+#				print('sub_dir={}, class_id={}: {}'.format(sub_dir, class_id, class_num))
+			quit()
 		else:
 			print('[ERROR] unknown dataset_type ... {}'.format(self.dataset_type))
 			quit()

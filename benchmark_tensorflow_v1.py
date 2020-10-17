@@ -31,7 +31,9 @@ def ArgParser():
 	parser = argparse.ArgumentParser(description='TensorFlow Low Level APIのサンプル', formatter_class=argparse.RawTextHelpFormatter)
 	
 	parser.add_argument('--train', dest='flg_train', action='store_true', help='セット時，モデルを生成')
+	parser.add_argument('--yaml', dest='yaml', type=str, default='benchmark_tensorflow_v1.yaml', required=False, help='TensorFlow学習パラメータ設定ファイルを指定')
 	parser.add_argument('--model', dest='model', type=str, default=None, required=False, help='TensorFlow学習済みモデルを指定')
+	parser.add_argument('--result_dir', dest='result_dir', type=str, default='result', required=False, help='結果を格納するディレクトリ')
 	
 	return parser.parse_args()
 	
@@ -554,10 +556,10 @@ def main():
 	
 	if (args.flg_train):
 		try:
-			with open('benchmark_tensorflow_v1.yaml') as file:
+			with open(args.yaml) as file:
 				params = yaml.safe_load(file)
 		except Exception as e:
-			print('[ERROR] Exception occurred: benchmark_tensorflow_v1.yaml')
+			print('[ERROR] Exception occurred: {}'.format(args.yaml))
 			quit()
 		
 		train_result_name = 'train_result.csv'
@@ -573,7 +575,7 @@ def main():
 		print(train_result_header)
 		
 		for idx_param in range(params['n_conditions']):
-			model_dir = 'model_{:03}'.format(idx_param)
+			model_dir = os.path.join(args.result_dir, 'model_{:03}'.format(idx_param))
 			os.makedirs(model_dir, exist_ok=True)
 			
 			print('--- param #{} -------------------'.format(idx_param))
@@ -588,7 +590,7 @@ def main():
 							print('{}: [{}]'.format(key, params[key][idx_param]))
 							f.write('{}: [{}]\n'.format(key, params[key][idx_param]))
 			print('-----------------------------------')
-			dataset = DataLoader(dataset_type=params['dataset'][idx_param], dataset_dir=params['dataset_dir'][idx_param])
+			dataset = DataLoader(dataset_type=params['dataset'][idx_param], dataset_dir=params['dataset_dir'][idx_param], output_dir=args.result_dir)
 			
 #			model = conv_net
 			tf_model = TF_Model()
