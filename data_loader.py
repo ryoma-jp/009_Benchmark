@@ -8,6 +8,7 @@ import os
 import glob
 import random
 import tqdm
+import pickle
 import numpy as np
 import pandas as pd
 import cv2
@@ -42,6 +43,25 @@ class DataLoader():
 		'''
 
 		def __set_data(train_data=None, train_label=None, validation_data=None, validation_label=None, test_data=None, test_label=None):
+			'''
+				xxx_data: data
+				xxx_label: label (one hot)
+			'''
+
+			if (train_label is not None):
+				self.train_label = train_label
+			else:
+				self.train_label = None
+
+			if (validation_label is not None):
+				self.validation_label = validation_label
+			else:
+				self.validation_label = None
+
+			if (test_label is not None):
+				self.test_label = test_label
+			else:
+				self.test_label = None
 
 			if (self.data_type == self.DATA_TYPE_IMAGE):
 				if (train_data is not None):
@@ -119,7 +139,7 @@ class DataLoader():
 		
 		elif (self.dataset_type == self.DATASET_TYPE_MNIST):
 			print('load mnist data')
-			self.data_type = DATA_TYPE_IMAGE
+			self.data_type = self.DATA_TYPE_IMAGE
 			dataset = input_data.read_data_sets(os.path.join('.', 'MNIST_data'), one_hot=True)
 			__set_data(dataset.train.images, dataset.train.labels, dataset.test.images, dataset.test.labels)
 			img_shape = [28, 28, 1]		# H, W, C
@@ -276,6 +296,21 @@ class DataLoader():
 
 
 		elif (self.dataset_type == self.DATASET_TYPE_HIRAGANA73):
+			def load_dataset(dataset_dict, data_no):
+				imgs = None
+				labels = None
+				for idx, _no in enumerate(tqdm.tqdm(data_no)):
+					img = cv2.imread(dataset_dict['file'][_no])
+					if (imgs is None):
+						imgs_shape = [len(data_no)] + [i for i in img.shape]
+						imgs = np.zeros(imgs_shape)
+						labels = np.zeros(len(data_no), dtype=int)
+					imgs[idx] = img
+					labels[idx] = int(dataset_dict['id'][_no])
+
+				return imgs, labels
+
+			self.data_type = self.DATA_TYPE_IMAGE
 			label_dict = {}		# name: ディレクトリ名, id: クラスID, num: 各クラスのデータ数
 			label_dict['name'] = [os.path.basename(_dir) for _dir in glob.glob(os.path.join(dataset_dir, '*'))]
 			label_dict['id'] = np.arange(len(label_dict['name']))
@@ -318,7 +353,71 @@ class DataLoader():
 
 #			for (sub_dir, class_id, class_num) in zip(label_dict['name'], label_dict['id'], label_dict['num']):
 #				print('sub_dir={}, class_id={}: {}'.format(sub_dir, class_id, class_num))
-			quit()
+
+			class_id_shuffle = np.random.permutation(dataset_dict['no'])
+#			print(class_id_shuffle)
+
+			# --- データセット分割 ---
+			#  * (train+validation : test) = (6 : 1)
+			#  * (train : validation) = (9 : 1)
+			#  * 本来はクラスごとに比率を保てるように分割すべき
+			train_data_num = len(class_id_shuffle) * 6 * 9 // 7 // 10
+			validation_data_num = len(class_id_shuffle) * 6 // 7 - train_data_num
+			test_data_num = len(class_id_shuffle) - (train_data_num + validation_data_num)
+#			print(train_data_num, validation_data_num, test_data_num, train_data_num+validation_data_num+test_data_num)
+
+			train_data_no = class_id_shuffle[0:train_data_num]
+			validation_data_no = class_id_shuffle[train_data_num:train_data_num+validation_data_num]
+			test_data_no = class_id_shuffle[train_data_num+validation_data_num:train_data_num+validation_data_num+test_data_num]
+
+			print(train_data_no)
+			print(validation_data_no)
+			print(test_data_no)
+
+			identity = np.eye(73, dtype=np.int)
+
+			# --- 学習データ読み込み ---
+			train_images, train_labels = load_dataset(dataset_dict, train_data_no)
+			train_labels = np.array([identity[i] for i in train_labels])
+
+			# --- バリデーションデータ読み込み ---
+			validation_images, validation_labels = load_dataset(dataset_dict, validation_data_no)
+			validation_labels = np.array([identity[i] for i in validation_labels])
+
+			# --- テストデータ読み込み ---
+			test_images, test_labels = load_dataset(dataset_dict, test_data_no)
+			test_labels = np.array([identity[i] for i in test_labels])
+
+			# --- 次回以降の読み出し高速化の為，pickleで保存しておく ---
+			#  * [T.B.D] Memory Errorが発生した為，コメントアウトして対応保留
+#			if (output_dir is not None):
+#				pkl_data = {
+#					'train_images': train_images, 'train_labels': train_labels,
+#					'validation_images': validation_images, 'validation_labels': validation_labels,
+#					'test_images': test_images, 'test_labels': test_labels}
+#				with open(os.path.join(output_dir, self.DATASET_OUTPUT_DIR, 'dataset.pkl'), 'wb') as _pkl:
+#					pickle.dump(pkl_data, _pkl, protocol=4)
+
+			__set_data(
+				train_data=train_images, train_label=train_labels,
+				validation_data = validation_images, validation_label = validation_labels, 
+				test_data = test_images, test_label = test_labels)
+
+#			print('[DEBUG: hiragana73 data')
+#			print('   train data: {}'.format(self.train_data))
+#			print('   validation data: {}'.format(self.validation_data))
+#			print('   test data: {}'.format(self.test_data))
+#
+#			print('[DEBUG: hiragana73 label')
+#			print('   train label: {}'.format(self.train_label))
+#			print('   validation label: {}'.format(self.validation_label))
+#			print('   test label: {}'.format(self.test_label))
+
+			print('<< hiragana73 data shape >>')
+			print('   train data: {}'.format(train_images.shape))
+			print('   validation data: {}'.format(validation_images.shape))
+			print('   test data: {}'.format(test_images.shape))
+
 		else:
 			print('[ERROR] unknown dataset_type ... {}'.format(self.dataset_type))
 			quit()
@@ -415,12 +514,16 @@ class DataLoader():
 
 			return cv2.warpAffine(img, affine, (w, h))
 
+#		print('[DEBUG: next_batch()]')
+#		print(self.train_data)
+#		print(self.train_label)
 
 		index = random.sample(self.idx_train_data, n_minibatch)
 		train_data = self.train_data[index].copy()
 		train_label = self.train_label[index]
 
-		if (self.dataset_type == self.DATASET_TYPE_CIFAR10):
+#		if (self.dataset_type == self.DATASET_TYPE_CIFAR10):
+		if (self.data_type == self.DATA_TYPE_IMAGE):
 			flip_idx = da_params['random_flip']
 			brightness_coef = da_params['brightness']
 			scaling_coef = da_params['scaling']

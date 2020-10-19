@@ -552,6 +552,9 @@ class TF_Model():
 # メイン処理
 #---------------------------------
 def main():
+        # --- ランダムシード固定 ---
+	np.random.seed(seed=1234)
+
 	args = ArgParser()
 	
 	if (args.flg_train):
@@ -605,11 +608,13 @@ def main():
 			da_params['random_erasing'] = params['da_random_erasing'][idx_param]
 
 			input_dims = np.hstack(([None], dataset.train_data.shape[1:]))
+			output_dims = np.hstack(([None], dataset.train_label.shape[1:]))
 			conv_channels = params['conv_channels'][idx_param]
 			conv_kernel_size = params['conv_kernel_size'][idx_param]
 			pool_size = params['pool_size'][idx_param]
 			fc_channels = params['fc_channels'][idx_param]
-			output_dims = [None, 10]
+#			output_dims = [None, 10]
+#			output_dims = [None, 73]
 			dropout_rate = params['dropout_rate'][idx_param]
 			train_x, train_y, train_y_ = tf_model.conv_net(
 							input_dims,

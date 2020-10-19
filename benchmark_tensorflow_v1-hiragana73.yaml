@@ -7,7 +7,7 @@ da_random_erasing: [[10, 16]]
 da_scaling_rate: [0.2]
 da_random_flip: [[0]]      # 0:none, 1:up down, 2:left right, 3:up down and left right
 da_brightness_coef: [0.0]
-da_rotation: [10]
+da_rotation: [5]
 da_shift_pix: [4]
 
 # --- 学習パラメータ ---
